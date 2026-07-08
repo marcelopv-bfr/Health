@@ -1,1 +1,849 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>HealthMerge</title>
+
+<!-- ── PWA / instalar como app ── -->
+<meta name="theme-color" content="#0E9384">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="HealthMerge">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230E9384'/%3E%3Cpath d='M15 55 h18 l6-16 8 30 8-22 5 8 h25' stroke='white' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link id="manifestLink" rel="manifest" href="">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
+
+:root{
+  --bg:#F7F9FB; --card:#FFFFFF; --border:#E7ECF2; --border-strong:#D5DEE7;
+  --ink:#16232E; --muted:#64748B; --faint:#94A3B8;
+  --teal:#0E9384; --teal-soft:#E6F6F3; --teal-deep:#0A6B60;
+  --blue:#175CD3; --blue-soft:#EFF4FF;
+  --amber:#B54708; --amber-soft:#FEF4E6;
+  --red:#D92D20; --red-soft:#FEEFEE;
+  --green:#067647; --green-soft:#EAF7F0;
+  --mono:'IBM Plex Mono',monospace; --sans:'Inter',sans-serif;
+  --shadow:0 1px 3px rgba(22,35,46,.06),0 4px 16px rgba(22,35,46,.05);
+  --radius:16px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{-webkit-text-size-adjust:100%;}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);min-height:100vh;padding-bottom:calc(72px + env(safe-area-inset-bottom));}
+@media(min-width:820px){body{padding-bottom:2rem;}}
+
+/* ── HEADER ── */
+header{background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50;padding-top:env(safe-area-inset-top);}
+.hdr{max-width:1100px;margin:0 auto;padding:.9rem 1.25rem .7rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;}
+.brand{display:flex;align-items:center;gap:.6rem;}
+.brand-icon{width:34px;height:34px;border-radius:9px;background:var(--teal);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.brand-icon svg{width:22px;height:22px;}
+.brand-txt .name{font-weight:700;font-size:1rem;letter-spacing:-.02em;}
+.brand-txt .sub{font-size:.66rem;color:var(--muted);font-family:var(--mono);}
+.hdr-badges{display:flex;gap:.4rem;align-items:center;}
+.pill{font-family:var(--mono);font-size:.64rem;padding:.28rem .6rem;border-radius:999px;border:1px solid var(--border);color:var(--muted);white-space:nowrap;background:var(--bg);}
+.pill.ok{background:var(--teal-soft);border-color:transparent;color:var(--teal-deep);}
+.pill.warn{background:var(--amber-soft);border-color:transparent;color:var(--amber);}
+.pill.err{background:var(--red-soft);border-color:transparent;color:var(--red);}
+/* ECG line */
+.ecg{height:22px;overflow:hidden;opacity:.5;}
+.ecg svg{width:200%;height:22px;animation:ecg 7s linear infinite;display:block;}
+@keyframes ecg{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media(prefers-reduced-motion:reduce){.ecg svg{animation:none;}}
+
+main{max-width:1100px;margin:0 auto;padding:1.25rem;}
+
+/* ── DESKTOP TABS ── */
+.tabs-top{display:none;gap:.25rem;margin-bottom:1.5rem;background:var(--card);border:1px solid var(--border);border-radius:999px;padding:.3rem;width:fit-content;}
+@media(min-width:820px){.tabs-top{display:flex;}}
+.tab-t{font-size:.8rem;font-weight:500;padding:.5rem 1.1rem;border-radius:999px;cursor:pointer;color:var(--muted);background:none;border:none;transition:all .15s;}
+.tab-t.active{background:var(--teal);color:#fff;}
+
+/* ── BOTTOM NAV (mobile) ── */
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);display:flex;z-index:60;padding-bottom:env(safe-area-inset-bottom);}
+@media(min-width:820px){.bottom-nav{display:none;}}
+.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:.55rem 0 .5rem;background:none;border:none;cursor:pointer;color:var(--faint);font-size:.6rem;font-weight:500;font-family:var(--sans);}
+.nav-item svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.nav-item.active{color:var(--teal);}
+
+.tab-panel{display:none;}
+.tab-panel.active{display:block;animation:fadeIn .25s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.tab-panel.active{animation:none;}}
+
+/* ── SYNC STRIP ── */
+.sync-strip{display:flex;gap:1rem;overflow-x:auto;padding:.85rem 1rem;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:1.25rem;box-shadow:var(--shadow);align-items:center;-webkit-overflow-scrolling:touch;}
+.sync-i{display:flex;flex-direction:column;gap:1px;min-width:max-content;}
+.sync-l{font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:600;}
+.sync-v{font-family:var(--mono);font-size:.76rem;color:var(--ink);}
+.btn{font-family:var(--sans);font-weight:600;font-size:.78rem;padding:.55rem 1.1rem;border-radius:10px;border:1px solid transparent;cursor:pointer;transition:all .15s;white-space:nowrap;}
+.btn-primary{background:var(--teal);color:#fff;}
+.btn-primary:active{background:var(--teal-deep);}
+.btn-ghost{background:var(--teal-soft);color:var(--teal-deep);}
+.btn-muted{background:var(--bg);color:var(--muted);border-color:var(--border);}
+
+/* ── STAT CARDS ── */
+.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem;margin-bottom:1.25rem;}
+@media(min-width:640px){.stats{grid-template-columns:repeat(3,1fr);}}
+@media(min-width:1000px){.stats{grid-template-columns:repeat(5,1fr);}}
+.stat{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:.95rem 1rem;box-shadow:var(--shadow);}
+.stat-l{font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:600;margin-bottom:.35rem;}
+.stat-v{font-family:var(--mono);font-size:1.55rem;font-weight:600;letter-spacing:-.02em;line-height:1;}
+.stat-u{font-size:.68rem;color:var(--muted);margin-left:.15rem;font-weight:400;}
+.stat-s{font-size:.66rem;color:var(--muted);margin-top:.35rem;}
+.c-teal{color:var(--teal-deep);}.c-blue{color:var(--blue);}.c-amber{color:var(--amber);}.c-red{color:var(--red);}.c-green{color:var(--green);}
+
+/* ── CHART CARDS ── */
+.grid{display:grid;grid-template-columns:1fr;gap:1rem;margin-bottom:1.25rem;}
+@media(min-width:820px){.grid{grid-template-columns:1fr 1fr;}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.15rem;box-shadow:var(--shadow);}
+.card.wide{grid-column:1/-1;}
+.card-hdr{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.9rem;gap:.5rem;flex-wrap:wrap;}
+.card-t{font-size:.82rem;font-weight:600;}
+.card-m{font-family:var(--mono);font-size:.62rem;color:var(--faint);}
+
+/* ── BP ── */
+.bp-grid{display:grid;grid-template-columns:1fr;gap:.75rem;margin-bottom:1rem;}
+@media(min-width:640px){.bp-grid{grid-template-columns:repeat(3,1fr);}}
+.bp-reading{display:flex;align-items:baseline;gap:.25rem;margin:.2rem 0;}
+.bp-sys{font-family:var(--mono);font-size:2rem;font-weight:600;letter-spacing:-.02em;}
+.bp-sep{color:var(--faint);font-size:1.2rem;}
+.bp-dia{font-family:var(--mono);font-size:1.35rem;font-weight:500;color:var(--muted);}
+.tag{display:inline-block;font-size:.64rem;font-weight:600;padding:.22rem .6rem;border-radius:999px;}
+.tag-normal{background:var(--green-soft);color:var(--green);}
+.tag-elevated{background:var(--amber-soft);color:var(--amber);}
+.tag-ht1{background:#FDEAD7;color:#B93815;}
+.tag-ht2{background:var(--red-soft);color:var(--red);}
+
+/* ── TABLE ── */
+.tbl-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.15rem;box-shadow:var(--shadow);overflow-x:auto;margin-bottom:1.25rem;}
+table{width:100%;border-collapse:collapse;}
+th{font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:600;text-align:left;padding:.45rem .6rem;border-bottom:1px solid var(--border);}
+td{padding:.55rem .6rem;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:.72rem;}
+tr:last-child td{border-bottom:none;}
+.src-samsung{color:var(--blue);}.src-huawei{color:var(--red);}.src-healthsync{color:var(--teal-deep);}
+
+/* ── CONFIG / SETUP ── */
+.cfg{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow);margin-bottom:1.25rem;}
+.cfg-t{font-size:.85rem;font-weight:600;margin-bottom:.65rem;}
+.cfg-row{display:flex;gap:.5rem;flex-wrap:wrap;}
+.inp{flex:1;min-width:220px;background:var(--bg);border:1px solid var(--border-strong);border-radius:10px;padding:.6rem .85rem;font-family:var(--mono);font-size:.75rem;color:var(--ink);}
+.inp:focus{outline:2px solid var(--teal);outline-offset:-1px;border-color:transparent;}
+.hint{font-size:.7rem;color:var(--muted);margin-top:.55rem;line-height:1.65;}
+.hint code{font-family:var(--mono);font-size:.66rem;background:var(--bg);border:1px solid var(--border);padding:.08rem .35rem;border-radius:5px;}
+
+.alertbox{border-radius:12px;padding:.75rem 1rem;font-size:.76rem;margin-bottom:1rem;line-height:1.55;}
+.alertbox.warn{background:var(--amber-soft);color:var(--amber);}
+.alertbox.info{background:var(--teal-soft);color:var(--teal-deep);}
+.alertbox.err{background:var(--red-soft);color:var(--red);}
+
+.empty{text-align:center;padding:3rem 1.5rem;color:var(--faint);}
+.empty .ic{font-size:2.2rem;margin-bottom:.6rem;opacity:.55;}
+.empty p{font-size:.8rem;line-height:1.7;}
+
+/* setup guide */
+.step{display:flex;gap:.85rem;margin-bottom:1.1rem;align-items:flex-start;}
+.step-n{font-family:var(--mono);font-size:.68rem;font-weight:600;min-width:1.55rem;height:1.55rem;border-radius:50%;background:var(--teal-soft);color:var(--teal-deep);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.05rem;}
+.step-b{font-size:.78rem;line-height:1.7;color:var(--ink);}
+.step-b strong{color:var(--teal-deep);}
+.step-b code{font-family:var(--mono);font-size:.68rem;background:var(--bg);border:1px solid var(--border);padding:.08rem .35rem;border-radius:5px;}
+
+footer{max-width:1100px;margin:2rem auto 0;padding:0 1.25rem;text-align:center;font-size:.64rem;color:var(--faint);}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hdr">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg viewBox="0 0 100 100"><path d="M12 55 h18 l7-18 9 34 9-25 5 9 h28" stroke="white" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="brand-txt">
+        <div class="name">HealthMerge</div>
+        <div class="sub">MARCELO P. VIANNA</div>
+      </div>
+    </div>
+    <div class="hdr-badges">
+      <span id="syncPill" class="pill">sem dados</span>
+      <span id="statusPill" class="pill">off</span>
+    </div>
+  </div>
+  <div class="ecg">
+    <svg viewBox="0 0 1200 22" preserveAspectRatio="none">
+      <polyline fill="none" stroke="#0E9384" stroke-width="1.3" points="0,11 70,11 80,11 90,3 95,19 100,1 105,17 110,11 180,11 250,11 260,11 270,3 275,19 280,1 285,17 290,11 360,11 430,11 440,11 450,3 455,19 460,1 465,17 470,11 540,11 600,11"/>
+      <polyline fill="none" stroke="#0E9384" stroke-width="1.3" transform="translate(600,0)" points="0,11 70,11 80,11 90,3 95,19 100,1 105,17 110,11 180,11 250,11 260,11 270,3 275,19 280,1 285,17 290,11 360,11 430,11 440,11 450,3 455,19 460,1 465,17 470,11 540,11 600,11"/>
+    </svg>
+  </div>
+</header>
+
+<main>
+
+<!-- desktop tabs -->
+<div class="tabs-top">
+  <button class="tab-t active" data-tab="overview">Visão Geral</button>
+  <button class="tab-t" data-tab="bp">Pressão</button>
+  <button class="tab-t" data-tab="sleep">Sono</button>
+  <button class="tab-t" data-tab="activity">Atividade</button>
+  <button class="tab-t" data-tab="ai">Análise IA</button>
+  <button class="tab-t" data-tab="settings">Ajustes</button>
+</div>
+
+<!-- ═══ OVERVIEW ═══ -->
+<div class="tab-panel active" id="tab-overview">
+  <div class="sync-strip">
+    <div class="sync-i"><span class="sync-l">Última sync</span><span class="sync-v" id="lastSync">—</span></div>
+    <div class="sync-i"><span class="sync-l">Registros</span><span class="sync-v" id="totalRec">—</span></div>
+    <button class="btn btn-ghost" style="margin-left:auto" onclick="refreshData()">↻ Atualizar</button>
+  </div>
+
+  <div id="alertArea"></div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-l">FC média</div><div class="stat-v c-blue" id="ovHR">—<span class="stat-u">bpm</span></div><div class="stat-s" id="ovHRsub">—</div></div>
+    <div class="stat"><div class="stat-l">Pressão média</div><div class="stat-v" id="ovBP">—</div><div class="stat-s" id="ovBPsub">—</div></div>
+    <div class="stat"><div class="stat-l">SpO₂ médio</div><div class="stat-v c-teal" id="ovSpo2">—<span class="stat-u">%</span></div><div class="stat-s" id="ovSpo2sub">—</div></div>
+    <div class="stat"><div class="stat-l">Sono médio</div><div class="stat-v c-amber" id="ovSleep">—<span class="stat-u">h</span></div><div class="stat-s" id="ovSleepsub">—</div></div>
+    <div class="stat"><div class="stat-l">Passos/dia</div><div class="stat-v c-teal" id="ovSteps">—</div><div class="stat-s" id="ovStepssub">—</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="card wide"><div class="card-hdr"><span class="card-t">Frequência cardíaca</span><span class="card-m" id="hrMeta">—</span></div><canvas id="chartHR" height="85"></canvas></div>
+    <div class="card wide"><div class="card-hdr"><span class="card-t">Pressão arterial</span><span class="card-m" id="bpMetaOv">—</span></div><canvas id="chartBPov" height="85"></canvas></div>
+  </div>
+  <div class="empty" id="ovEmpty"><div class="ic">📊</div><p>Conecte sua planilha em <strong>Ajustes</strong> para ver os dados.</p></div>
+</div>
+
+<!-- ═══ BP ═══ -->
+<div class="tab-panel" id="tab-bp">
+  <div id="bpEmpty" class="empty"><div class="ic">🩺</div><p>Sem dados de pressão arterial ainda.</p></div>
+  <div id="bpContent" style="display:none">
+    <div class="bp-grid" id="bpGrid"></div>
+    <div class="card wide" style="margin-bottom:1rem">
+      <div class="card-hdr"><span class="card-t">Evolução — sistólica e diastólica</span><span class="card-m" id="bpMeta2">—</span></div>
+      <canvas id="chartBP2" height="110"></canvas>
+    </div>
+    <div class="tbl-wrap">
+      <div class="card-t" style="margin-bottom:.75rem">Medições recentes</div>
+      <table><thead><tr><th>Data</th><th>Hora</th><th>Sist.</th><th>Diast.</th><th>Classificação</th></tr></thead>
+      <tbody id="bpTable"></tbody></table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ SLEEP ═══ -->
+<div class="tab-panel" id="tab-sleep">
+  <div id="sleepEmpty" class="empty"><div class="ic">💤</div><p>Sem dados de sono ainda.</p></div>
+  <div id="sleepContent" style="display:none">
+    <div class="stats">
+      <div class="stat"><div class="stat-l">Média/noite</div><div class="stat-v c-amber" id="slAvg">—<span class="stat-u">h</span></div></div>
+      <div class="stat"><div class="stat-l">Noites &lt;6h</div><div class="stat-v c-red" id="slLt6">—</div></div>
+      <div class="stat"><div class="stat-l">Noites ≥7h</div><div class="stat-v c-green" id="slGt7">—</div></div>
+      <div class="stat"><div class="stat-l">SpO₂ mínimo</div><div class="stat-v" id="slSpo2min">—<span class="stat-u">%</span></div></div>
+      <div class="stat"><div class="stat-l">SpO₂ &lt;90%</div><div class="stat-v c-red" id="slHypo">—</div><div class="stat-s">eventos</div></div>
+    </div>
+    <div id="sleepApneaAlert" class="alertbox warn" style="display:none">⚠ Múltiplos episódios de SpO₂ abaixo de 90% — padrão sugestivo de apneia do sono. Vale discutir polissonografia com seu médico.</div>
+    <div class="grid">
+      <div class="card wide"><div class="card-hdr"><span class="card-t">Duração do sono</span><span class="card-m" id="sleepMeta">—</span></div><canvas id="chartSleep" height="110"></canvas></div>
+      <div class="card"><div class="card-hdr"><span class="card-t">SpO₂ noturno</span></div><canvas id="chartSpo2" height="150"></canvas></div>
+      <div class="card"><div class="card-hdr"><span class="card-t">Qualidade das noites</span></div><canvas id="chartSleepDist" height="150"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ACTIVITY ═══ -->
+<div class="tab-panel" id="tab-activity">
+  <div id="actEmpty" class="empty"><div class="ic">🏃</div><p>Sem dados de atividade ainda.</p></div>
+  <div id="actContent" style="display:none">
+    <div class="stats">
+      <div class="stat"><div class="stat-l">Passos/dia</div><div class="stat-v c-teal" id="acSteps">—</div></div>
+      <div class="stat"><div class="stat-l">Dias ≥10 mil</div><div class="stat-v c-green" id="acDays10k">—</div></div>
+      <div class="stat"><div class="stat-l">Dias com registro</div><div class="stat-v c-blue" id="acDays">—</div></div>
+      <div class="stat"><div class="stat-l">Km em atividades</div><div class="stat-v c-teal" id="acKm">—<span class="stat-u">km</span></div></div>
+    </div>
+    <div class="grid">
+      <div class="card wide"><div class="card-hdr"><span class="card-t">Passos diários</span><span class="card-m" id="stepsMeta">—</span></div><canvas id="chartSteps" height="110"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ AI ═══ -->
+<div class="tab-panel" id="tab-ai">
+  <div class="cfg">
+    <div class="cfg-t">🧠 Análise inteligente dos seus dados</div>
+    <div class="hint" style="margin-top:0;margin-bottom:.9rem">
+      Gera uma análise clínica personalizada dos dados coletados — tendências de pressão, padrões de sono/SpO₂, frequência cardíaca e atividade — com insights e pontos de atenção para discutir com seus médicos.
+    </div>
+    <div class="cfg-row">
+      <button class="btn btn-primary" id="btnAnalyze" onclick="runAIAnalysis()">✦ Analisar com Claude</button>
+      <button class="btn btn-ghost" onclick="copyPromptToClipboard()">⧉ Copiar prompt p/ app Claude</button>
+    </div>
+    <div class="hint" id="aiModeHint">
+      Sem chave de API configurada — use <strong>"Copiar prompt"</strong> e cole no app do Claude (grátis). Ou configure uma chave de API da Anthropic em Ajustes para análise com um toque.
+    </div>
+  </div>
+
+  <div class="card wide" id="aiResultCard" style="display:none;margin-bottom:1.25rem">
+    <div class="card-hdr">
+      <span class="card-t">Análise · <span id="aiDate" style="color:var(--faint);font-weight:400"></span></span>
+      <button class="btn btn-muted" style="padding:.3rem .7rem;font-size:.68rem" onclick="copyAnalysis()">⧉ Copiar</button>
+    </div>
+    <div id="aiResult" style="font-size:.82rem;line-height:1.75;white-space:pre-wrap;"></div>
+  </div>
+
+  <div class="alertbox info" style="font-size:.7rem">
+    ℹ A análise é gerada por IA a partir dos dados dos seus wearables e não substitui avaliação médica. Leve os insights para discutir com seu cardiologista e endocrinologista.
+  </div>
+</div>
+
+<!-- ═══ SETTINGS ═══ -->
+<div class="tab-panel" id="tab-settings">
+  <div class="cfg">
+    <div class="cfg-t">Fonte de dados</div>
+    <div class="cfg-row">
+      <input class="inp" id="sheetUrl" placeholder="URL da Google Sheet (HealthMerge_DB)">
+      <button class="btn btn-primary" onclick="connectSheet()">Conectar</button>
+      <button class="btn btn-muted" onclick="clearConfig()">Limpar</button>
+    </div>
+    <div class="hint">Cole o link da planilha <code>HealthMerge_DB</code> criada pelo Apps Script. Ela precisa estar compartilhada como "Qualquer pessoa com o link pode ver".</div>
+  </div>
+
+  <div class="cfg">
+    <div class="cfg-t">Análise IA (opcional)</div>
+    <div class="cfg-row">
+      <input class="inp" id="apiKey" type="password" placeholder="Chave de API da Anthropic (sk-ant-...)">
+      <button class="btn btn-primary" onclick="saveApiKey()">Salvar</button>
+    </div>
+    <div class="hint">
+      Com uma chave, o botão <strong>"Analisar com Claude"</strong> funciona direto no app (uso da API é cobrado pela Anthropic — centavos por análise).<br>
+      Sem chave, use <strong>"Copiar prompt"</strong> na aba Análise IA e cole no app do Claude — gratuito com sua assinatura.<br>
+      A chave fica salva apenas neste aparelho (localStorage).
+    </div>
+  </div>
+
+  <div class="cfg">
+    <div class="cfg-t">Instalar como app no celular</div>
+    <div class="step"><div class="step-n">1</div><div class="step-b">Abra este site no <strong>Chrome</strong> (Android) ou <strong>Safari</strong> (iPhone).</div></div>
+    <div class="step"><div class="step-n">2</div><div class="step-b"><strong>Android:</strong> menu ⋮ → <code>Adicionar à tela inicial</code> → Instalar.<br><strong>iPhone:</strong> botão compartilhar ⬆ → <code>Adicionar à Tela de Início</code>.</div></div>
+    <div class="step"><div class="step-n">3</div><div class="step-b">O ícone do HealthMerge aparece na tela inicial e abre em tela cheia, como um app.</div></div>
+  </div>
+
+  <div class="cfg">
+    <div class="cfg-t">Como funciona</div>
+    <div class="step"><div class="step-n">●</div><div class="step-b">O <strong>Health Sync</strong> deposita seus dados (Samsung + Huawei) no Google Drive diariamente.</div></div>
+    <div class="step"><div class="step-n">●</div><div class="step-b">O <strong>Google Apps Script</strong> processa tudo às 8h e atualiza a planilha.</div></div>
+    <div class="step"><div class="step-n">●</div><div class="step-b">Este app lê a planilha e mostra os gráficos — seus dados ficam só na sua conta Google.</div></div>
+  </div>
+</div>
+
+</main>
+
+<!-- bottom nav -->
+<nav class="bottom-nav">
+  <button class="nav-item active" data-tab="overview">
+    <svg viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="6" width="4" height="14" rx="1"/><rect x="17" y="9" width="4" height="11" rx="1"/></svg>
+    Visão
+  </button>
+  <button class="nav-item" data-tab="bp">
+    <svg viewBox="0 0 24 24"><path d="M12 21C7 16.5 4 13 4 9.5A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 8 3.5c0 3.5-3 7-8 11.5z"/><path d="M6 12h3l2-4 2 6 1.5-3H18"/></svg>
+    Pressão
+  </button>
+  <button class="nav-item" data-tab="sleep">
+    <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
+    Sono
+  </button>
+  <button class="nav-item" data-tab="activity">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="M9 22l2-7-3-3 4-4 2 3h4"/><path d="M7 12l-2 2"/></svg>
+    Atividade
+  </button>
+  <button class="nav-item" data-tab="ai">
+    <svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.9 2.6L22.5 18.5l-2.6.9L19 22l-.9-2.6-2.6-.9 2.6-.9z"/></svg>
+    IA
+  </button>
+  <button class="nav-item" data-tab="settings">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Ajustes
+  </button>
+</nav>
+
+<footer>HealthMerge · uso pessoal · dados na sua conta Google, processados localmente no navegador</footer>
+
+<script>
+// ── PWA manifest dinâmico (funciona em arquivo único) ──
+const manifest = {
+  name: 'HealthMerge', short_name: 'HealthMerge',
+  start_url: location.href.split('#')[0], display: 'standalone',
+  background_color: '#F7F9FB', theme_color: '#0E9384',
+  icons: [{ src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230E9384'/%3E%3Cpath d='M15 55 h18 l6-16 8 30 8-22 5 8 h25' stroke='white' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E", sizes: '512x512', type: 'image/svg+xml', purpose: 'any' }]
+};
+document.getElementById('manifestLink').href =
+  URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/json' }));
+
+// ── STATE ──
+const S = {
+  sheetId: localStorage.getItem('hm_sheet_id') || '',
+  data: { records: [], summary: {} },
+  charts: {}
+};
+
+window.onload = () => {
+  if (S.sheetId) {
+    document.getElementById('sheetUrl').value = 'https://docs.google.com/spreadsheets/d/' + S.sheetId;
+    refreshData();
+  } else {
+    showTab('settings');
+  }
+};
+
+// ── TABS ──
+document.querySelectorAll('[data-tab]').forEach(el =>
+  el.addEventListener('click', () => showTab(el.dataset.tab)));
+
+function showTab(id) {
+  document.querySelectorAll('[data-tab]').forEach(el =>
+    el.classList.toggle('active', el.dataset.tab === id));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+}
+
+// ── CONNECT ──
+function connectSheet() {
+  const url = document.getElementById('sheetUrl').value.trim();
+  const m = url.match(/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  if (!m) { showAlert('URL inválida — cole o link completo da planilha.', 'err'); return; }
+  S.sheetId = m[1];
+  localStorage.setItem('hm_sheet_id', S.sheetId);
+  refreshData();
+  showTab('overview');
+}
+
+function clearConfig() {
+  localStorage.removeItem('hm_sheet_id');
+  S.sheetId = '';
+  document.getElementById('sheetUrl').value = '';
+  setPill('statusPill', 'off', '');
+  setPill('syncPill', 'sem dados', '');
+}
+
+// ── FETCH ──
+async function refreshData() {
+  if (!S.sheetId) { showAlert('Configure a planilha em Ajustes.', 'warn'); return; }
+  setPill('statusPill', 'carregando…', 'warn');
+  try {
+    const [records, summary] = await Promise.all([
+      fetchCsv(S.sheetId, 'Registros'),
+      fetchCsv(S.sheetId, 'Resumo'),
+    ]);
+    S.data.records = parseRecords(records);
+    S.data.summary = parseSummary(summary);
+    setPill('statusPill', 'conectado', 'ok');
+
+    const last = S.data.summary['geral.ultima_atualizacao'];
+    if (last) {
+      const d = new Date(last);
+      setPill('syncPill', d.toLocaleDateString('pt-BR'), 'ok');
+      document.getElementById('lastSync').textContent = d.toLocaleString('pt-BR');
+    }
+    document.getElementById('totalRec').textContent =
+      (S.data.summary['geral.total_registros'] || S.data.records.length);
+    renderAll();
+  } catch (e) {
+    setPill('statusPill', 'erro', 'err');
+    showAlert('Não foi possível carregar. Verifique se a planilha está compartilhada como "Qualquer pessoa com o link". (' + e.message + ')', 'err');
+  }
+}
+
+async function fetchCsv(id, sheet) {
+  const r = await fetch(`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}`);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return r.text();
+}
+
+function parseRecords(csv) {
+  const lines = csv.split('\n').filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const headers = splitCsv(lines[0]).map(h => h.replace(/"/g, ''));
+  return lines.slice(1).map(line => {
+    const cols = splitCsv(line);
+    const row = {};
+    headers.forEach((h, i) => row[h] = (cols[i] || '').replace(/"/g, '').trim());
+    return row;
+  }).filter(r => r.timestamp_ms || r.data);
+}
+
+function parseSummary(csv) {
+  const lines = csv.split('\n').filter(l => l.trim());
+  const out = {};
+  for (let i = 1; i < lines.length; i++) {
+    const c = splitCsv(lines[i]).map(x => x.replace(/"/g, '').trim());
+    if (c.length >= 3) out[c[0] + '.' + c[1]] = c[2];
+  }
+  return out;
+}
+
+function splitCsv(line) {
+  const r = []; let cur = '', q = false;
+  for (const ch of line) {
+    if (ch === '"') q = !q;
+    else if (ch === ',' && !q) { r.push(cur); cur = ''; }
+    else cur += ch;
+  }
+  r.push(cur);
+  return r;
+}
+
+// ── RENDER ──
+function renderAll() { renderOverview(); renderBP(); renderSleep(); renderActivity(); }
+
+function renderOverview() {
+  document.getElementById('ovEmpty').style.display = 'none';
+  const sm = S.data.summary;
+
+  if (sm['heart_rate.media']) {
+    document.getElementById('ovHR').innerHTML = Math.round(sm['heart_rate.media']) + '<span class="stat-u">bpm</span>';
+    document.getElementById('ovHRsub').textContent = 'mín ' + (sm['heart_rate.min']||'—') + ' · máx ' + (sm['heart_rate.max']||'—');
+  }
+  const sys = sm['blood_pressure.sys_media'], dia = sm['blood_pressure.dia_media'];
+  if (sys && dia) {
+    const cl = bpClass(+sys, +dia);
+    document.getElementById('ovBP').innerHTML = `<span class="${cl.c}">${Math.round(sys)}/${Math.round(dia)}</span><span class="stat-u">mmHg</span>`;
+    document.getElementById('ovBPsub').textContent = cl.label;
+  }
+  if (sm['spo2.media']) {
+    const el = document.getElementById('ovSpo2');
+    el.innerHTML = sm['spo2.media'] + '<span class="stat-u">%</span>';
+    el.className = 'stat-v ' + ((+sm['spo2.min'] || 100) < 90 ? 'c-red' : 'c-teal');
+    document.getElementById('ovSpo2sub').textContent = (sm['spo2.eventos_lt90']||0) + ' eventos <90%';
+  }
+  if (sm['sleep.media_horas']) {
+    document.getElementById('ovSleep').innerHTML = (+sm['sleep.media_horas']).toFixed(1) + '<span class="stat-u">h</span>';
+    document.getElementById('ovSleepsub').textContent = sm['sleep.n'] + ' noites';
+  }
+  if (sm['steps.media_diaria']) {
+    document.getElementById('ovSteps').textContent = Number(sm['steps.media_diaria']).toLocaleString('pt-BR');
+    document.getElementById('ovStepssub').textContent = (sm['steps.dias_gte10000']||0) + ' dias ≥10 mil';
+  }
+
+  // HR chart (média diária)
+  destroy('chartHR');
+  const hr = S.data.records.filter(r => r.metrica === 'heart_rate');
+  if (hr.length) {
+    const byDay = {};
+    hr.forEach(r => { (byDay[r.data] = byDay[r.data] || []).push(+r.valor); });
+    const labels = Object.keys(byDay);
+    const vals = labels.map(d => +(byDay[d].reduce((a,b)=>a+b,0)/byDay[d].length).toFixed(1));
+    document.getElementById('hrMeta').textContent = labels.length + ' dias';
+    mkChart('chartHR', 'line', labels.slice(-90), [{
+      label: 'FC média (bpm)', data: vals.slice(-90),
+      borderColor: '#175CD3', backgroundColor: '#175CD315',
+      tension: .35, pointRadius: 0, borderWidth: 2, fill: true
+    }]);
+  }
+  renderBPChart('chartBPov', 'bpMetaOv');
+}
+
+function renderBPChart(canvasId, metaId) {
+  destroy(canvasId);
+  const bps = S.data.records.filter(r => r.metrica === 'blood_pressure');
+  if (!bps.length) return;
+  document.getElementById(metaId).textContent = bps.length + ' medições';
+  mkChart(canvasId, 'line', bps.map(r => r.data), [
+    { label: 'Sistólica', data: bps.map(r => +r.valor), borderColor: '#D92D20', backgroundColor: '#D92D2010', tension: .3, pointRadius: 2, borderWidth: 2 },
+    { label: 'Diastólica', data: bps.map(r => +r.valor2), borderColor: '#175CD3', backgroundColor: '#175CD310', tension: .3, pointRadius: 2, borderWidth: 2 },
+    { label: 'Meta <130', data: bps.map(() => 130), borderColor: '#B5470860', borderDash: [5,5], pointRadius: 0, borderWidth: 1.2 },
+  ], { y: { min: 50, max: 200 } });
+}
+
+function renderBP() {
+  const bps = S.data.records.filter(r => r.metrica === 'blood_pressure');
+  const has = bps.length > 0;
+  document.getElementById('bpEmpty').style.display = has ? 'none' : 'block';
+  document.getElementById('bpContent').style.display = has ? 'block' : 'none';
+  if (!has) return;
+
+  const sm = S.data.summary;
+  const sysA = sm['blood_pressure.sys_media'], diaA = sm['blood_pressure.dia_media'];
+  const lS = sm['blood_pressure.ultima_sys'], lD = sm['blood_pressure.ultima_dia'];
+  const lT = sm['blood_pressure.ultima_ts'] ? new Date(+sm['blood_pressure.ultima_ts']).toLocaleDateString('pt-BR') : '—';
+  const clA = sysA ? bpClass(+sysA, +diaA) : { label:'—', tag:'' };
+  const clL = lS ? bpClass(+lS, +lD) : { label:'—', tag:'' };
+
+  document.getElementById('bpGrid').innerHTML = `
+    <div class="card"><div class="stat-l">Última · ${lT}</div>
+      <div class="bp-reading"><span class="bp-sys">${lS?Math.round(lS):'—'}</span><span class="bp-sep">/</span><span class="bp-dia">${lD?Math.round(lD):'—'}</span></div>
+      <span class="tag ${clL.tag}">${clL.label}</span></div>
+    <div class="card"><div class="stat-l">Média · ${sm['blood_pressure.n']||0} medições</div>
+      <div class="bp-reading"><span class="bp-sys">${sysA?Math.round(sysA):'—'}</span><span class="bp-sep">/</span><span class="bp-dia">${diaA?Math.round(diaA):'—'}</span></div>
+      <span class="tag ${clA.tag}">${clA.label}</span></div>
+    <div class="card"><div class="stat-l">Faixa sistólica</div>
+      <div class="bp-reading"><span class="bp-sys" style="font-size:1.4rem">${sm['blood_pressure.sys_min']||'—'}–${sm['blood_pressure.sys_max']||'—'}</span></div>
+      <div class="stat-s">mmHg</div></div>`;
+
+  renderBPChart('chartBP2', 'bpMeta2');
+
+  const tbody = document.getElementById('bpTable');
+  tbody.innerHTML = '';
+  for (const r of bps.slice(-40).reverse()) {
+    const cl = bpClass(+r.valor, +r.valor2);
+    tbody.insertAdjacentHTML('beforeend',
+      `<tr><td>${r.data}</td><td>${r.hora}</td><td style="font-weight:600">${Math.round(r.valor)}</td><td>${Math.round(r.valor2)}</td><td><span class="tag ${cl.tag}">${cl.label}</span></td></tr>`);
+  }
+}
+
+function renderSleep() {
+  const sm = S.data.summary;
+  const has = sm['sleep.n'] || sm['spo2.n'];
+  document.getElementById('sleepEmpty').style.display = has ? 'none' : 'block';
+  document.getElementById('sleepContent').style.display = has ? 'block' : 'none';
+  if (!has) return;
+
+  document.getElementById('slAvg').innerHTML = (+(sm['sleep.media_horas']||0)).toFixed(1) + '<span class="stat-u">h</span>';
+  document.getElementById('slLt6').textContent = sm['sleep.noites_lt6'] || '0';
+  document.getElementById('slGt7').textContent = sm['sleep.noites_gte7'] || '0';
+  const minS = +(sm['spo2.min'] || 100);
+  const el = document.getElementById('slSpo2min');
+  el.innerHTML = (sm['spo2.min']||'—') + '<span class="stat-u">%</span>';
+  el.className = 'stat-v ' + (minS < 90 ? 'c-red' : 'c-teal');
+  const hypo = +(sm['spo2.eventos_lt90'] || 0);
+  document.getElementById('slHypo').textContent = hypo;
+  document.getElementById('sleepApneaAlert').style.display = hypo > 2 ? 'block' : 'none';
+
+  destroy('chartSleep');
+  const sl = S.data.records.filter(r => r.metrica === 'sleep');
+  if (sl.length) {
+    const isMin = sl.reduce((a,r) => a + +r.valor, 0) / sl.length > 20;
+    const vals = sl.map(r => +(isMin ? r.valor/60 : r.valor).toFixed(2));
+    document.getElementById('sleepMeta').textContent = sl.length + ' noites';
+    mkChart('chartSleep', 'bar', sl.map(r => r.data), [{
+      label: 'Sono (h)', data: vals,
+      backgroundColor: vals.map(v => v < 5 ? '#D92D20' : v < 6 ? '#F79009' : '#0E9384'),
+      borderRadius: 4
+    }]);
+  }
+
+  destroy('chartSpo2');
+  const sp = S.data.records.filter(r => r.metrica === 'spo2');
+  if (sp.length) {
+    mkChart('chartSpo2', 'bar', sp.map(r => r.data), [{
+      label: 'SpO₂ (%)', data: sp.map(r => +r.valor),
+      backgroundColor: sp.map(r => +r.valor < 90 ? '#D92D20' : +r.valor < 95 ? '#F79009' : '#0E9384'),
+      borderRadius: 4
+    }], { y: { min: 85, max: 100 } });
+  }
+
+  destroy('chartSleepDist');
+  const slH = sl.map(r => +r.valor > 20 ? +r.valor/60 : +r.valor);
+  if (slH.length) {
+    const ctx = document.getElementById('chartSleepDist').getContext('2d');
+    S.charts.chartSleepDist = new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels: ['<5h','5–6h','6–7h','≥7h'], datasets: [{
+        data: [slH.filter(v=>v<5).length, slH.filter(v=>v>=5&&v<6).length, slH.filter(v=>v>=6&&v<7).length, slH.filter(v=>v>=7).length],
+        backgroundColor: ['#D92D20','#F79009','#175CD3','#0E9384'], borderWidth: 2, borderColor: '#fff'
+      }]},
+      options: { plugins: { legend: { position:'bottom', labels: { color:'#64748B', font:{ family:'Inter', size:11 }, boxWidth:10, padding:12 }}}}
+    });
+  }
+}
+
+function renderActivity() {
+  const sm = S.data.summary;
+  const has = sm['steps.dias_registrados'] || sm['activity.n'];
+  document.getElementById('actEmpty').style.display = has ? 'none' : 'block';
+  document.getElementById('actContent').style.display = has ? 'block' : 'none';
+  if (!has) return;
+
+  document.getElementById('acSteps').textContent = Number(sm['steps.media_diaria']||0).toLocaleString('pt-BR');
+  document.getElementById('acDays10k').textContent = sm['steps.dias_gte10000'] || '0';
+  document.getElementById('acDays').textContent = sm['steps.dias_registrados'] || '0';
+  document.getElementById('acKm').innerHTML = (sm['activity.km_total']||'—') + '<span class="stat-u">km</span>';
+
+  destroy('chartSteps');
+  const st = S.data.records.filter(r => r.metrica === 'steps');
+  const byDay = {};
+  st.forEach(r => { byDay[r.data] = (byDay[r.data]||0) + +r.valor; });
+  const labels = Object.keys(byDay);
+  const vals = labels.map(d => byDay[d]);
+  if (labels.length) {
+    document.getElementById('stepsMeta').textContent = labels.length + ' dias';
+    mkChart('chartSteps', 'bar', labels.slice(-60), [{
+      label: 'Passos', data: vals.slice(-60),
+      backgroundColor: vals.slice(-60).map(v => v < 6000 ? '#D92D20' : v < 10000 ? '#F79009' : '#0E9384'),
+      borderRadius: 4
+    }]);
+  }
+}
+
+// ── BP class (AHA) ──
+function bpClass(sys, dia) {
+  if (sys < 120 && dia < 80) return { label:'Normal', tag:'tag-normal', c:'c-green' };
+  if (sys < 130 && dia < 80) return { label:'Elevada', tag:'tag-elevated', c:'c-amber' };
+  if (sys < 140 || dia < 90) return { label:'Hipertensão I', tag:'tag-ht1', c:'c-amber' };
+  return { label:'Hipertensão II', tag:'tag-ht2', c:'c-red' };
+}
+
+// ── chart helpers ──
+const baseOpts = (extraScales={}) => ({
+  responsive: true, animation: { duration: 400 },
+  plugins: { legend: { labels: { color:'#64748B', font:{ family:'Inter', size:11 }, boxWidth:10 }}},
+  scales: {
+    x: { ticks: { color:'#94A3B8', font:{ family:'IBM Plex Mono', size:9 }, maxTicksLimit: 10 }, grid: { color:'#EEF2F6' }, ...(extraScales.x||{}) },
+    y: { ticks: { color:'#94A3B8', font:{ family:'IBM Plex Mono', size:10 } }, grid: { color:'#EEF2F6' }, ...(extraScales.y||{}) }
+  }
+});
+function mkChart(id, type, labels, datasets, extraScales) {
+  const ctx = document.getElementById(id).getContext('2d');
+  S.charts[id] = new Chart(ctx, { type, data: { labels, datasets }, options: baseOpts(extraScales) });
+}
+function destroy(id) { if (S.charts[id]) { S.charts[id].destroy(); delete S.charts[id]; } }
+function setPill(id, text, cls) { const el = document.getElementById(id); el.className = 'pill ' + cls; el.textContent = text; }
+
+// ═══ ANÁLISE IA ═══
+function saveApiKey() {
+  const k = document.getElementById('apiKey').value.trim();
+  if (k) { localStorage.setItem('hm_api_key', k); showAlert('Chave salva neste aparelho.', 'info'); }
+  else { localStorage.removeItem('hm_api_key'); showAlert('Chave removida.', 'info'); }
+  updateAiHint();
+}
+
+function updateAiHint() {
+  const has = !!localStorage.getItem('hm_api_key');
+  document.getElementById('aiModeHint').innerHTML = has
+    ? '✓ Chave de API configurada — a análise roda direto no app.'
+    : 'Sem chave de API configurada — use <strong>"Copiar prompt"</strong> e cole no app do Claude (grátis). Ou configure uma chave de API da Anthropic em Ajustes para análise com um toque.';
+}
+
+function buildHealthSummary() {
+  const sm = S.data.summary;
+  if (!Object.keys(sm).length) return null;
+  const bps = S.data.records.filter(r => r.metrica === 'blood_pressure').slice(-30);
+  const bpLines = bps.map(r => `${r.data} ${r.hora}: ${Math.round(r.valor)}/${Math.round(r.valor2)} mmHg`).join('\n');
+
+  return `DADOS DE SAÚDE — WEARABLES (Samsung Galaxy Watch 6 + Huawei Watch D2)
+Período monitorado, resumo agregado:
+
+PRESSÃO ARTERIAL (${sm['blood_pressure.n']||0} medições, cuff inflável Huawei Watch D2):
+- Média: ${sm['blood_pressure.sys_media']||'—'}/${sm['blood_pressure.dia_media']||'—'} mmHg
+- Faixa sistólica: ${sm['blood_pressure.sys_min']||'—'}–${sm['blood_pressure.sys_max']||'—'} mmHg
+- Últimas 30 medições:
+${bpLines || '(sem registros)'}
+
+FREQUÊNCIA CARDÍACA (${sm['heart_rate.n']||0} registros):
+- Média: ${sm['heart_rate.media']||'—'} bpm | Mín: ${sm['heart_rate.min']||'—'} | Máx: ${sm['heart_rate.max']||'—'}
+
+SPO2 (${sm['spo2.n']||0} registros):
+- Média: ${sm['spo2.media']||'—'}% | Mínimo: ${sm['spo2.min']||'—'}%
+- Eventos abaixo de 90%: ${sm['spo2.eventos_lt90']||0}
+
+SONO (${sm['sleep.n']||0} noites):
+- Média: ${sm['sleep.media_horas']||'—'}h | Noites <6h: ${sm['sleep.noites_lt6']||0} | Noites ≥7h: ${sm['sleep.noites_gte7']||0}
+
+ATIVIDADE:
+- Passos médios/dia: ${sm['steps.media_diaria']||'—'} | Dias ≥10.000: ${sm['steps.dias_gte10000']||0}
+- Km em atividades: ${sm['activity.km_total']||'—'}`;
+}
+
+const AI_INSTRUCTIONS = `Você é um assistente de análise de dados de saúde. Analise os dados de wearables acima considerando este contexto do paciente:
+- Homem, 43 anos, 173cm, ~76kg, composição corporal excelente (12,4% gordura)
+- Perfil cardiovascular de atenção: escore de cálcio coronário 201 (percentil 100), progrediu de 34 em ~2,5 anos; placas calcificadas e mistas sem estenoses significativas
+- Em uso de: estatina (Pitavastatina) + Inclisiran, anti-hipertensivo (losartan+HCTZ), Dapagliflozina, testosterona IM, Mounjaro
+- Pratica CrossFit com FC de pico até 193 bpm; questão aberta sobre teste de estresse funcional
+- Suspeita de apneia do sono não confirmada (polissonografia pendente); histórico de SpO2 noturno <90%
+
+Forneça:
+1. TENDÊNCIAS: o que os dados mostram (PA, FC, SpO2, sono, atividade)
+2. PONTOS DE ATENÇÃO: valores ou padrões que merecem observação, no contexto do perfil cardiovascular
+3. CORRELAÇÕES: possíveis relações entre métricas (ex: sono ruim ↔ PA elevada)
+4. PERGUNTAS PARA OS MÉDICOS: 3-5 perguntas específicas para cardiologista/endocrinologista baseadas nesses dados
+Seja objetivo e baseado apenas nos dados. Não faça diagnósticos. Responda em português.`;
+
+function copyPromptToClipboard() {
+  const summary = buildHealthSummary();
+  if (!summary) { showAlert('Conecte a planilha primeiro para gerar o resumo.', 'warn'); return; }
+  const full = summary + '\n\n---\n\n' + AI_INSTRUCTIONS;
+  navigator.clipboard.writeText(full).then(
+    () => showAlert('Prompt copiado! Cole no app do Claude para receber a análise.', 'info'),
+    () => showAlert('Não foi possível copiar automaticamente.', 'err')
+  );
+}
+
+async function runAIAnalysis() {
+  const key = localStorage.getItem('hm_api_key');
+  if (!key) {
+    showAlert('Sem chave de API — usando o modo gratuito: prompt copiado para colar no app do Claude.', 'info');
+    copyPromptToClipboard();
+    return;
+  }
+  const summary = buildHealthSummary();
+  if (!summary) { showAlert('Conecte a planilha primeiro.', 'warn'); return; }
+
+  const btn = document.getElementById('btnAnalyze');
+  btn.disabled = true; btn.textContent = '✦ Analisando…';
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: summary + '\n\n---\n\n' + AI_INSTRUCTIONS }]
+      })
+    });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
+
+    document.getElementById('aiResult').textContent = text;
+    document.getElementById('aiDate').textContent = new Date().toLocaleString('pt-BR');
+    document.getElementById('aiResultCard').style.display = 'block';
+    localStorage.setItem('hm_last_analysis', JSON.stringify({ text, date: Date.now() }));
+  } catch (e) {
+    showAlert('Erro na análise: ' + e.message + '. Verifique a chave de API.', 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = '✦ Analisar com Claude';
+  }
+}
+
+function copyAnalysis() {
+  const t = document.getElementById('aiResult').textContent;
+  navigator.clipboard.writeText(t).then(() => showAlert('Análise copiada.', 'info'));
+}
+
+// restaura última análise e estado da chave ao abrir
+(function initAI() {
+  const saved = localStorage.getItem('hm_last_analysis');
+  if (saved) {
+    try {
+      const { text, date } = JSON.parse(saved);
+      document.getElementById('aiResult').textContent = text;
+      document.getElementById('aiDate').textContent = new Date(date).toLocaleString('pt-BR');
+      document.getElementById('aiResultCard').style.display = 'block';
+    } catch(e) {}
+  }
+  const k = localStorage.getItem('hm_api_key');
+  if (k) document.getElementById('apiKey').value = k;
+  updateAiHint();
+})();
+function showAlert(msg, type) {
+  const a = document.getElementById('alertArea');
+  const d = document.createElement('div');
+  d.className = 'alertbox ' + type;
+  d.textContent = msg;
+  a.appendChild(d);
+  setTimeout(() => d.remove(), 10000);
+}
+</script>
+</body>
+</html>
 
