@@ -56,6 +56,14 @@ header{background:var(--card);border-bottom:1px solid var(--border);position:sti
 
 main{max-width:1100px;margin:0 auto;padding:1.25rem;}
 
+/* ── ACTIVITY SUB-TABS ── */
+.act-subtabs{display:flex;gap:.4rem;overflow-x:auto;margin-bottom:1.25rem;-webkit-overflow-scrolling:touch;padding-bottom:.1rem;}
+.act-tab{font-size:.78rem;font-weight:500;padding:.5rem 1rem;border-radius:10px;cursor:pointer;color:var(--muted);background:var(--card);border:1px solid var(--border);white-space:nowrap;transition:all .15s;}
+.act-tab.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+.act-panel{display:none;}
+.act-panel.active{display:block;animation:fadeIn .2s ease;}
+.c-muted{color:var(--muted);}
+
 /* ── DESKTOP TABS ── */
 .tabs-top{display:none;gap:.25rem;margin-bottom:1.5rem;background:var(--card);border:1px solid var(--border);border-radius:999px;padding:.3rem;width:fit-content;}
 @media(min-width:820px){.tabs-top{display:flex;}}
@@ -260,15 +268,90 @@ footer{max-width:1100px;margin:2rem auto 0;padding:0 1.25rem;text-align:center;f
 <div class="tab-panel" id="tab-activity">
   <div id="actEmpty" class="empty"><div class="ic">🏃</div><p>Sem dados de atividade ainda.</p></div>
   <div id="actContent" style="display:none">
-    <div class="stats">
-      <div class="stat"><div class="stat-l">Passos/dia</div><div class="stat-v c-teal" id="acSteps">—</div></div>
-      <div class="stat"><div class="stat-l">Dias ≥10 mil</div><div class="stat-v c-green" id="acDays10k">—</div></div>
-      <div class="stat"><div class="stat-l">Dias com registro</div><div class="stat-v c-blue" id="acDays">—</div></div>
-      <div class="stat"><div class="stat-l">Km em atividades</div><div class="stat-v c-teal" id="acKm">—<span class="stat-u">km</span></div></div>
+
+    <!-- sub-tabs -->
+    <div class="act-subtabs">
+      <button class="act-tab active" data-act="geral">Geral</button>
+      <button class="act-tab" data-act="corrida">🏃 Corrida</button>
+      <button class="act-tab" data-act="crossfit">🏋️ CrossFit</button>
+      <button class="act-tab" data-act="outros">Outros</button>
     </div>
-    <div class="grid">
-      <div class="card wide"><div class="card-hdr"><span class="card-t">Passos diários</span><span class="card-m" id="stepsMeta">—</span></div><canvas id="chartSteps" height="110"></canvas></div>
+
+    <!-- ── GERAL ── -->
+    <div class="act-panel active" id="act-geral">
+      <div class="stats">
+        <div class="stat"><div class="stat-l">Passos/dia</div><div class="stat-v c-teal" id="acSteps">—</div><div class="stat-s" id="acStepsSub">—</div></div>
+        <div class="stat"><div class="stat-l">Dias ≥10 mil</div><div class="stat-v c-green" id="acDays10k">—</div></div>
+        <div class="stat"><div class="stat-l">Sessões registradas</div><div class="stat-v c-blue" id="acTotal">—</div><div class="stat-s" id="acTotalSub">—</div></div>
+        <div class="stat"><div class="stat-l">Km totais</div><div class="stat-v c-teal" id="acKm">—<span class="stat-u">km</span></div></div>
+      </div>
+      <div class="grid">
+        <div class="card wide"><div class="card-hdr"><span class="card-t">Passos diários</span><span class="card-m" id="stepsMeta">—</span></div><canvas id="chartSteps" height="110"></canvas></div>
+        <div class="card"><div class="card-hdr"><span class="card-t">Sessões por tipo</span></div><canvas id="chartActTypes" height="160"></canvas></div>
+        <div class="card"><div class="card-hdr"><span class="card-t">Frequência semanal</span><span class="card-m" id="actWeekMeta">—</span></div><canvas id="chartActWeek" height="160"></canvas></div>
+      </div>
     </div>
+
+    <!-- ── CORRIDA ── -->
+    <div class="act-panel" id="act-corrida">
+      <div class="stats">
+        <div class="stat"><div class="stat-l">Corridas</div><div class="stat-v c-blue" id="runCount">—</div></div>
+        <div class="stat"><div class="stat-l">Km totais</div><div class="stat-v c-teal" id="runKm">—<span class="stat-u">km</span></div></div>
+        <div class="stat"><div class="stat-l">Km por corrida</div><div class="stat-v c-teal" id="runKmAvg">—<span class="stat-u">km</span></div></div>
+        <div class="stat"><div class="stat-l">Pace médio</div><div class="stat-v c-blue" id="runPace">—<span class="stat-u">min/km</span></div></div>
+        <div class="stat"><div class="stat-l">FC média</div><div class="stat-v c-amber" id="runHR">—<span class="stat-u">bpm</span></div></div>
+        <div class="stat"><div class="stat-l">Tempo total</div><div class="stat-v c-muted" id="runTime">—</div></div>
+      </div>
+      <div class="grid">
+        <div class="card wide"><div class="card-hdr"><span class="card-t">Distância por sessão</span><span class="card-m" id="runChartMeta">—</span></div><canvas id="chartRunKm" height="110"></canvas></div>
+        <div class="card"><div class="card-hdr"><span class="card-t">Distribuição de distâncias</span></div><canvas id="chartRunDist" height="160"></canvas></div>
+        <div class="card"><div class="card-hdr"><span class="card-t">FC durante corridas</span></div><canvas id="chartRunHR" height="160"></canvas></div>
+      </div>
+      <div class="tbl-wrap">
+        <div class="card-t" style="margin-bottom:.75rem">Histórico de corridas</div>
+        <table><thead><tr><th>Data</th><th>Distância</th><th>Duração</th><th>Pace</th><th>FC méd.</th></tr></thead>
+        <tbody id="runTable"></tbody></table>
+        <div class="empty" id="runEmpty" style="padding:1.5rem;display:none"><p>Nenhuma corrida registrada ainda.</p></div>
+      </div>
+    </div>
+
+    <!-- ── CROSSFIT ── -->
+    <div class="act-panel" id="act-crossfit">
+      <div class="stats">
+        <div class="stat"><div class="stat-l">Sessões CrossFit</div><div class="stat-v c-blue" id="cfCount">—</div></div>
+        <div class="stat"><div class="stat-l">Por semana (média)</div><div class="stat-v c-teal" id="cfPerWeek">—</div></div>
+        <div class="stat"><div class="stat-l">FC média</div><div class="stat-v c-amber" id="cfHR">—<span class="stat-u">bpm</span></div></div>
+        <div class="stat"><div class="stat-l">FC máxima registrada</div><div class="stat-v c-red" id="cfHRmax">—<span class="stat-u">bpm</span></div></div>
+        <div class="stat"><div class="stat-l">Duração média</div><div class="stat-v c-muted" id="cfDur">—<span class="stat-u">min</span></div></div>
+        <div class="stat"><div class="stat-l">Streak atual</div><div class="stat-v c-green" id="cfStreak">—<span class="stat-u">dias</span></div></div>
+      </div>
+      <div class="grid">
+        <div class="card wide"><div class="card-hdr"><span class="card-t">Sessões por semana</span><span class="card-m" id="cfChartMeta">—</span></div><canvas id="chartCFweek" height="110"></canvas></div>
+        <div class="card"><div class="card-hdr"><span class="card-t">FC nas sessões</span><span class="card-m">últimas 30</span></div><canvas id="chartCFhr" height="160"></canvas></div>
+        <div class="card"><div class="card-hdr"><span class="card-t">Dias da semana</span></div><canvas id="chartCFdays" height="160"></canvas></div>
+      </div>
+      <div class="tbl-wrap">
+        <div class="card-t" style="margin-bottom:.75rem">Histórico de treinos</div>
+        <table><thead><tr><th>Data</th><th>Hora</th><th>Tipo registrado</th><th>Duração</th><th>FC</th></tr></thead>
+        <tbody id="cfTable"></tbody></table>
+        <div class="empty" id="cfEmpty" style="padding:1.5rem;display:none"><p>Nenhum treino CrossFit registrado ainda.</p></div>
+      </div>
+    </div>
+
+    <!-- ── OUTROS ── -->
+    <div class="act-panel" id="act-outros">
+      <div class="stats">
+        <div class="stat"><div class="stat-l">Outras atividades</div><div class="stat-v c-blue" id="otCount">—</div></div>
+        <div class="stat"><div class="stat-l">Km registrados</div><div class="stat-v c-teal" id="otKm">—<span class="stat-u">km</span></div></div>
+      </div>
+      <div class="tbl-wrap">
+        <div class="card-t" style="margin-bottom:.75rem">Todas as atividades</div>
+        <table><thead><tr><th>Data</th><th>Tipo</th><th>Distância</th><th>Duração</th></tr></thead>
+        <tbody id="otTable"></tbody></table>
+        <div class="empty" id="otEmpty" style="padding:1.5rem;display:none"><p>Nenhuma outra atividade registrada.</p></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -651,32 +734,325 @@ function renderSleep() {
   }
 }
 
+// ── ACTIVITY TYPE CLASSIFIER ──
+// RUNNING: "RUNNING", "running", "1001", "corrida"
+// CROSSFIT: "CIRCUIT_TRAINING","circuit","OTHER","other","10007","14001","outro treino","treino circuito","crossfit"
+function classifyActivity(tipo) {
+  const t = String(tipo||'').toLowerCase().trim();
+  if (!t || t === 'null') return 'outros';
+  if (t.includes('run') || t === '1001' || t.includes('corrid')) return 'corrida';
+  if (t.includes('circuit') || t.includes('crossfit') || t.includes('outro treino')
+    || t.includes('treino circ') || t === 'other' || t === 'outro' || t === '10007'
+    || t === '14001' || t === 'functional' || t.includes('indoor')) return 'crossfit';
+  return 'outros';
+}
+
+// ── ACTIVITY SUB-TABS WIRING ──
+document.querySelectorAll('.act-tab').forEach(btn =>
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.act-tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.act-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('act-' + btn.dataset.act).classList.add('active');
+  })
+);
+
 function renderActivity() {
   const sm = S.data.summary;
-  const has = sm['steps.dias_registrados'] || sm['activity.n'];
+  const acts = S.data.records.filter(r => r.metrica === 'activity');
+  const steps = S.data.records.filter(r => r.metrica === 'steps');
+  const hrRecs = S.data.records.filter(r => r.metrica === 'heart_rate');
+
+  const has = steps.length || acts.length;
   document.getElementById('actEmpty').style.display = has ? 'none' : 'block';
   document.getElementById('actContent').style.display = has ? 'block' : 'none';
   if (!has) return;
 
-  document.getElementById('acSteps').textContent = Number(sm['steps.media_diaria']||0).toLocaleString('pt-BR');
-  document.getElementById('acDays10k').textContent = sm['steps.dias_gte10000'] || '0';
-  document.getElementById('acDays').textContent = sm['steps.dias_registrados'] || '0';
-  document.getElementById('acKm').innerHTML = (sm['activity.km_total']||'—') + '<span class="stat-u">km</span>';
+  // classify activities
+  const corridas = acts.filter(r => classifyActivity(r.valor2 || r.valor) === 'corrida'
+    || classifyActivity(r.arquivo||'') === 'corrida');
+  const cfs = acts.filter(r => {
+    const t = classifyActivity(r.valor2 || r.valor);
+    return t === 'crossfit';
+  });
+  const outros = acts.filter(r => {
+    const t = classifyActivity(r.valor2 || r.valor);
+    return t === 'outros' && classifyActivity(r.arquivo||'') === 'outros';
+  });
 
-  destroy('chartSteps');
-  const st = S.data.records.filter(r => r.metrica === 'steps');
+  renderActGeral(sm, steps, acts, corridas, cfs);
+  renderActCorrida(corridas, hrRecs);
+  renderActCrossfit(cfs, hrRecs);
+  renderActOutros(outros);
+}
+
+// ── GERAL ──
+function renderActGeral(sm, steps, acts, corridas, cfs) {
   const byDay = {};
-  st.forEach(r => { byDay[r.data] = (byDay[r.data]||0) + +r.valor; });
-  const labels = Object.keys(byDay);
-  const vals = labels.map(d => byDay[d]);
-  if (labels.length) {
-    document.getElementById('stepsMeta').textContent = labels.length + ' dias';
-    mkChart('chartSteps', 'bar', labels.slice(-60), [{
-      label: 'Passos', data: vals.slice(-60),
-      backgroundColor: vals.slice(-60).map(v => v < 6000 ? '#D92D20' : v < 10000 ? '#F79009' : '#0E9384'),
+  steps.forEach(r => { byDay[r.data] = (byDay[r.data]||0) + +r.valor; });
+  const dVals = Object.values(byDay);
+  const dKeys = Object.keys(byDay);
+
+  document.getElementById('acSteps').textContent = dVals.length
+    ? Number(Math.round(dVals.reduce((a,b)=>a+b,0)/dVals.length)).toLocaleString('pt-BR') : '—';
+  document.getElementById('acStepsSub').textContent = dKeys.length + ' dias';
+  document.getElementById('acDays10k').textContent = dVals.filter(v=>v>=10000).length;
+  document.getElementById('acTotal').textContent = acts.length;
+  document.getElementById('acTotalSub').textContent =
+    `${corridas.length} corridas · ${cfs.length} CrossFit`;
+
+  const kmTotal = acts.map(r => parseFloat(r.valor)).filter(v => !isNaN(v) && v > 0).reduce((a,b)=>a+b,0);
+  document.getElementById('acKm').innerHTML = kmTotal.toFixed(1) + '<span class="stat-u">km</span>';
+
+  // Passos chart
+  destroy('chartSteps');
+  if (dKeys.length) {
+    const sorted = dKeys.sort();
+    const sVals = sorted.map(d => byDay[d]);
+    document.getElementById('stepsMeta').textContent = sorted.length + ' dias';
+    mkChart('chartSteps', 'bar', sorted.slice(-60), [{
+      label: 'Passos', data: sVals.slice(-60),
+      backgroundColor: sVals.slice(-60).map(v => v<6000?'#D92D20':v<10000?'#F79009':'#0E9384'),
       borderRadius: 4
     }]);
   }
+
+  // Tipos (donut)
+  destroy('chartActTypes');
+  if (acts.length) {
+    const ctx = document.getElementById('chartActTypes').getContext('2d');
+    S.charts.chartActTypes = new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels: ['Corrida','CrossFit','Outros'],
+        datasets: [{ data: [corridas.length, cfs.length, acts.length-corridas.length-cfs.length],
+          backgroundColor: ['#175CD3','#D92D20','#94A3B8'], borderWidth: 2, borderColor:'#fff' }]},
+      options: { plugins: { legend: { position:'bottom', labels: { color:'#64748B', font:{family:'Inter',size:11}, boxWidth:10, padding:10 }}}}
+    });
+  }
+
+  // Frequência semanal
+  destroy('chartActWeek');
+  if (acts.length) {
+    const byWeek = {};
+    acts.forEach(r => {
+      const d = parseDMY(r.data);
+      if (!d) return;
+      const mon = mondayOf(d);
+      byWeek[mon] = (byWeek[mon]||0) + 1;
+    });
+    const wks = Object.keys(byWeek).sort().slice(-16);
+    document.getElementById('actWeekMeta').textContent = 'últimas ' + wks.length + ' semanas';
+    mkChart('chartActWeek', 'bar', wks, [{
+      label: 'Sessões/semana', data: wks.map(w=>byWeek[w]),
+      backgroundColor: '#0E9384', borderRadius: 4
+    }]);
+  }
+}
+
+// ── CORRIDA ──
+function renderActCorrida(corridas, hrRecs) {
+  const isEmpty = corridas.length === 0;
+  document.getElementById('runEmpty').style.display = isEmpty ? 'block' : 'none';
+  if (isEmpty) return;
+
+  const kms = corridas.map(r => parseFloat(r.valor)).filter(v => !isNaN(v) && v > 0);
+  const durs = corridas.map(r => parseFloat(r.valor2)).filter(v => !isNaN(v) && v > 0); // segundos
+  const totalKm = kms.reduce((a,b)=>a+b,0);
+  const avgKm = kms.length ? totalKm/kms.length : 0;
+
+  // Pace: tempo(s) / km
+  const paces = corridas.map(r => {
+    const km = parseFloat(r.valor), dur = parseFloat(r.valor2);
+    if (!km || !dur || km < 0.1) return null;
+    return (dur/60) / km; // min/km
+  }).filter(Boolean);
+  const avgPace = paces.length ? paces.reduce((a,b)=>a+b,0)/paces.length : 0;
+
+  const totalSecs = durs.reduce((a,b)=>a+b,0);
+
+  document.getElementById('runCount').textContent = corridas.length;
+  document.getElementById('runKm').innerHTML = totalKm.toFixed(1) + '<span class="stat-u">km</span>';
+  document.getElementById('runKmAvg').innerHTML = avgKm.toFixed(2) + '<span class="stat-u">km</span>';
+  document.getElementById('runPace').innerHTML = (avgPace ? fmtPace(avgPace) : '—') + '<span class="stat-u">min/km</span>';
+  document.getElementById('runTime').textContent = fmtDuration(totalSecs);
+
+  // FC durante corridas (cruzamento por data/hora)
+  const runDates = new Set(corridas.map(r => r.data));
+  const runHRs = hrRecs.filter(r => runDates.has(r.data)).map(r => +r.valor).filter(v=>v>100);
+  document.getElementById('runHR').innerHTML = (runHRs.length
+    ? Math.round(runHRs.reduce((a,b)=>a+b,0)/runHRs.length) : '—') + '<span class="stat-u">bpm</span>';
+
+  // Distância por sessão
+  destroy('chartRunKm');
+  const sorted = corridas.slice().sort((a,b) => parseDMY(a.data)-parseDMY(b.data));
+  document.getElementById('runChartMeta').textContent = corridas.length + ' sessões';
+  mkChart('chartRunKm', 'bar', sorted.map(r=>r.data), [{
+    label: 'Distância (km)', data: sorted.map(r=>+r.valor||0),
+    backgroundColor: sorted.map(r => (+r.valor||0)<3?'#F79009':(+r.valor||0)<6?'#175CD3':'#0E9384'),
+    borderRadius: 4
+  }]);
+
+  // Distribuição donut
+  destroy('chartRunDist');
+  const ctx2 = document.getElementById('chartRunDist').getContext('2d');
+  S.charts.chartRunDist = new Chart(ctx2, {
+    type: 'doughnut',
+    data: { labels:['<3km','3–5km','5–8km','>8km'], datasets:[{
+      data:[kms.filter(v=>v<3).length,kms.filter(v=>v>=3&&v<5).length,kms.filter(v=>v>=5&&v<8).length,kms.filter(v=>v>=8).length],
+      backgroundColor:['#94A3B8','#175CD3','#0E9384','#067647'], borderWidth:2, borderColor:'#fff'
+    }]},
+    options:{plugins:{legend:{position:'bottom',labels:{color:'#64748B',font:{family:'Inter',size:11},boxWidth:10,padding:10}}}}
+  });
+
+  // FC chart
+  destroy('chartRunHR');
+  if (runHRs.length) {
+    mkChart('chartRunHR', 'bar', Array.from({length:runHRs.length},(_,i)=>String(i+1)), [{
+      label:'FC (bpm)', data: runHRs,
+      backgroundColor: runHRs.map(v=>v>180?'#D92D20':v>165?'#F79009':'#175CD3'), borderRadius:4
+    }]);
+  }
+
+  // Tabela
+  const tbody = document.getElementById('runTable'); tbody.innerHTML='';
+  for (const r of sorted.slice().reverse().slice(0,30)) {
+    const km = parseFloat(r.valor)||0;
+    const dur = parseFloat(r.valor2)||0;
+    const pace = (km>0.1&&dur>0) ? fmtPace((dur/60)/km) : '—';
+    tbody.insertAdjacentHTML('beforeend',
+      `<tr><td>${r.data}</td><td style="font-weight:600">${km.toFixed(2)} km</td><td>${fmtDuration(dur)}</td><td>${pace} min/km</td><td>—</td></tr>`);
+  }
+}
+
+// ── CROSSFIT ──
+function renderActCrossfit(cfs, hrRecs) {
+  const isEmpty = cfs.length === 0;
+  document.getElementById('cfEmpty').style.display = isEmpty ? 'block' : 'none';
+  if (isEmpty) return;
+
+  const durs = cfs.map(r=>parseFloat(r.valor2)).filter(v=>!isNaN(v)&&v>0);
+  const avgDur = durs.length ? durs.reduce((a,b)=>a+b,0)/durs.length : 0;
+
+  // Sessões por semana
+  const byWeek = {};
+  cfs.forEach(r => { const d=parseDMY(r.data); if(!d) return; const m=mondayOf(d); byWeek[m]=(byWeek[m]||0)+1; });
+  const wkVals = Object.values(byWeek);
+  const avgPerWeek = wkVals.length ? (wkVals.reduce((a,b)=>a+b,0)/wkVals.length).toFixed(1) : '—';
+
+  // FC CrossFit (dias com treino)
+  const cfDates = new Set(cfs.map(r=>r.data));
+  const cfHRs = hrRecs.filter(r=>cfDates.has(r.data)&&+r.valor>100).map(r=>+r.valor);
+  const cfHRmax = cfHRs.length ? Math.max(...cfHRs) : 0;
+  const cfHRavg = cfHRs.length ? Math.round(cfHRs.reduce((a,b)=>a+b,0)/cfHRs.length) : 0;
+
+  // Streak atual
+  const cfDatesSorted = [...new Set(cfs.map(r=>r.data))].sort().reverse();
+  let streak = 0;
+  if (cfDatesSorted.length) {
+    const today = new Date(); today.setHours(0,0,0,0);
+    let prev = null;
+    for (const ds of cfDatesSorted) {
+      const d = parseDMY(ds); if(!d) break;
+      if (!prev) { const diff=(today-d)/(86400000); if(diff>3) break; prev=d; streak=1; continue; }
+      if ((prev-d)/(86400000)<=7) { streak++; prev=d; } else break;
+    }
+  }
+
+  document.getElementById('cfCount').textContent = cfs.length;
+  document.getElementById('cfPerWeek').textContent = avgPerWeek;
+  document.getElementById('cfHR').innerHTML = (cfHRavg||'—') + '<span class="stat-u">bpm</span>';
+  document.getElementById('cfHRmax').innerHTML = (cfHRmax||'—') + '<span class="stat-u">bpm</span>';
+  document.getElementById('cfDur').innerHTML = (avgDur?Math.round(avgDur/60):'—') + '<span class="stat-u">min</span>';
+  document.getElementById('cfStreak').innerHTML = streak + '<span class="stat-u">semanas</span>';
+
+  // Sessões por semana chart
+  destroy('chartCFweek');
+  const wks = Object.keys(byWeek).sort().slice(-20);
+  document.getElementById('cfChartMeta').textContent = wks.length + ' semanas';
+  mkChart('chartCFweek','bar',wks,[{
+    label:'Sessões',data:wks.map(w=>byWeek[w]),
+    backgroundColor: wks.map(w=>byWeek[w]>=4?'#0E9384':byWeek[w]>=3?'#175CD3':'#94A3B8'),
+    borderRadius:4
+  }],{y:{min:0,max:7,ticks:{stepSize:1}}});
+
+  // FC chart
+  destroy('chartCFhr');
+  const last30cf = cfs.slice().sort((a,b)=>parseDMY(a.data)-parseDMY(b.data)).slice(-30);
+  if (cfHRs.length) {
+    mkChart('chartCFhr','bar',last30cf.map(r=>r.data),[{
+      label:'FC (bpm)', data: last30cf.map(r=>{
+        const h=hrRecs.filter(x=>x.data===r.data&&+x.valor>100).map(x=>+x.valor);
+        return h.length?Math.round(h.reduce((a,b)=>a+b,0)/h.length):null;
+      }),
+      backgroundColor:'#F79009', borderRadius:4
+    }]);
+  }
+
+  // Dias da semana
+  destroy('chartCFdays');
+  const diasNome = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  const byDow = [0,0,0,0,0,0,0];
+  cfs.forEach(r => { const d=parseDMY(r.data); if(d) byDow[d.getDay()]++; });
+  const ctx3 = document.getElementById('chartCFdays').getContext('2d');
+  S.charts.chartCFdays = new Chart(ctx3,{type:'bar',data:{labels:diasNome,datasets:[{
+    label:'Treinos', data:byDow,
+    backgroundColor:byDow.map(v=>v===Math.max(...byDow)?'#D92D20':'#175CD3'), borderRadius:4
+  }]},options:{...baseOpts(),plugins:{legend:{display:false}}}});
+
+  // Tabela
+  const tbody=document.getElementById('cfTable'); tbody.innerHTML='';
+  const tipoLabel = t => {
+    const n=String(t||'').toLowerCase();
+    if(n.includes('circuit')) return 'Circuit Training';
+    if(n.includes('other')||n==='outro') return 'Outro Treino';
+    if(n==='10007') return 'Indoor (10007)';
+    return t||'—';
+  };
+  for (const r of cfs.slice().sort((a,b)=>parseDMY(b.data)-parseDMY(a.data)).slice(0,50)) {
+    const dur=parseFloat(r.valor2)||0;
+    const hrsDay=hrRecs.filter(x=>x.data===r.data&&+x.valor>100).map(x=>+x.valor);
+    const fcStr=hrsDay.length?Math.round(hrsDay.reduce((a,b)=>a+b,0)/hrsDay.length)+' bpm':'—';
+    tbody.insertAdjacentHTML('beforeend',
+      `<tr><td>${r.data}</td><td>${r.hora||'—'}</td><td style="color:var(--muted)">${tipoLabel(r.valor2||r.valor)}</td><td>${dur?fmtDuration(dur):'—'}</td><td>${fcStr}</td></tr>`);
+  }
+}
+
+// ── OUTROS ──
+function renderActOutros(outros) {
+  document.getElementById('otEmpty').style.display = outros.length?'none':'block';
+  document.getElementById('otCount').textContent = outros.length;
+  const kms=outros.map(r=>parseFloat(r.valor)).filter(v=>!isNaN(v)&&v>0);
+  document.getElementById('otKm').innerHTML=(kms.reduce((a,b)=>a+b,0)).toFixed(1)+'<span class="stat-u">km</span>';
+  const tbody=document.getElementById('otTable'); tbody.innerHTML='';
+  for(const r of outros.slice().sort((a,b)=>parseDMY(b.data)-parseDMY(a.data)).slice(0,50)){
+    tbody.insertAdjacentHTML('beforeend',`<tr><td>${r.data}</td><td style="color:var(--muted)">${r.valor2||r.valor||'—'}</td><td>${parseFloat(r.valor)>0?parseFloat(r.valor).toFixed(2)+' km':'—'}</td><td>${r.valor2?fmtDuration(parseFloat(r.valor2)):'—'}</td></tr>`);
+  }
+}
+
+// ── DATE HELPERS ──
+function parseDMY(str) {
+  if (!str) return null;
+  // dd/MM/yyyy
+  const m = str.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+  if (m) return new Date(+m[3],+m[2]-1,+m[1]);
+  const d = new Date(str);
+  return isNaN(d)?null:d;
+}
+function mondayOf(d) {
+  const day=d.getDay(), diff=d.getDate()-day+(day===0?-6:1);
+  const mon=new Date(d); mon.setDate(diff); mon.setHours(0,0,0,0);
+  return mon.toISOString().split('T')[0];
+}
+function fmtPace(minKm) {
+  const m=Math.floor(minKm), s=Math.round((minKm-m)*60);
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+function fmtDuration(secs) {
+  if(!secs||isNaN(secs)) return '—';
+  // valor2 pode vir em segundos ou minutos dependendo do Health Sync
+  const s = secs > 3600*24 ? secs/1000 : secs; // ms → s se muito grande
+  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60);
+  return h>0 ? `${h}h${String(m).padStart(2,'0')}min` : `${m}min`;
 }
 
 // ── BP class (AHA) ──
