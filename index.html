@@ -284,6 +284,8 @@ footer{max-width:1100px;margin:2rem auto 0;padding:0 1.25rem;text-align:center;f
         <div class="stat"><div class="stat-l">Dias ≥10 mil</div><div class="stat-v c-green" id="acDays10k">—</div></div>
         <div class="stat"><div class="stat-l">Sessões registradas</div><div class="stat-v c-blue" id="acTotal">—</div><div class="stat-s" id="acTotalSub">—</div></div>
         <div class="stat"><div class="stat-l">Km totais</div><div class="stat-v c-teal" id="acKm">—<span class="stat-u">km</span></div></div>
+        <div class="stat"><div class="stat-l">FC repouso (méd.)</div><div class="stat-v c-blue" id="acHRrest">—<span class="stat-u">bpm</span></div><div class="stat-s" id="acHRrestSub">fora de treinos</div></div>
+        <div class="stat"><div class="stat-l">FC durante treino</div><div class="stat-v c-red" id="acHRtrain">—<span class="stat-u">bpm</span></div><div class="stat-s" id="acHRtrainSub">média em atividade</div></div>
       </div>
       <div class="grid">
         <div class="card wide"><div class="card-hdr"><span class="card-t">Passos diários</span><span class="card-m" id="stepsMeta">—</span></div><canvas id="chartSteps" height="110"></canvas></div>
@@ -804,6 +806,16 @@ function renderActGeral(sm, steps, acts, corridas, cfs) {
   const kmTotal = acts.map(r => parseFloat(r.valor)).filter(v => !isNaN(v) && v > 0).reduce((a,b)=>a+b,0);
   document.getElementById('acKm').innerHTML = kmTotal.toFixed(1) + '<span class="stat-u">km</span>';
 
+  // FC segmentada repouso vs treino (calculada no backend Code.gs)
+  if (sm['heart_rate_repouso.media']) {
+    document.getElementById('acHRrest').innerHTML = Math.round(sm['heart_rate_repouso.media']) + '<span class="stat-u">bpm</span>';
+    document.getElementById('acHRrestSub').textContent = `n=${sm['heart_rate_repouso.n']||0} · faixa ${sm['heart_rate_repouso.min']||'—'}-${sm['heart_rate_repouso.max']||'—'}`;
+  }
+  if (sm['heart_rate_treino.media']) {
+    document.getElementById('acHRtrain').innerHTML = Math.round(sm['heart_rate_treino.media']) + '<span class="stat-u">bpm</span>';
+    document.getElementById('acHRtrainSub').textContent = `n=${sm['heart_rate_treino.n']||0} · máx ${sm['heart_rate_treino.max']||'—'}`;
+  }
+
   // Passos chart
   destroy('chartSteps');
   if (dKeys.length) {
@@ -1109,8 +1121,18 @@ PRESSÃO ARTERIAL (${sm['blood_pressure.n']||0} medições, cuff inflável Huawe
 - Últimas 30 medições:
 ${bpLines || '(sem registros)'}
 
-FREQUÊNCIA CARDÍACA (${sm['heart_rate.n']||0} registros):
+FREQUÊNCIA CARDÍACA — GERAL (${sm['heart_rate.n']||0} registros, inclui repouso + treino):
 - Média: ${sm['heart_rate.media']||'—'} bpm | Mín: ${sm['heart_rate.min']||'—'} | Máx: ${sm['heart_rate.max']||'—'}
+
+FREQUÊNCIA CARDÍACA — SEGMENTADA:
+- Repouso/dia-a-dia (${sm['heart_rate_repouso.n']||0} registros fora de janelas de treino): média ${sm['heart_rate_repouso.media']||'—'} bpm | faixa ${sm['heart_rate_repouso.min']||'—'}–${sm['heart_rate_repouso.max']||'—'} bpm
+- Durante treino (${sm['heart_rate_treino.n']||0} registros dentro de janelas de atividade): média ${sm['heart_rate_treino.media']||'—'} bpm | faixa ${sm['heart_rate_treino.min']||'—'}–${sm['heart_rate_treino.max']||'—'} bpm
+- Zonas de FC durante treino: Z1(<120)=${sm['heart_rate_treino.zona_z1_lt120']||0} | Z2(120-144)=${sm['heart_rate_treino.zona_z2_120_144']||0} | Z3(145-164)=${sm['heart_rate_treino.zona_z3_145_164']||0} | Z4(165-179)=${sm['heart_rate_treino.zona_z4_165_179']||0} | Z5(≥180)=${sm['heart_rate_treino.zona_z5_gte180']||0}
+
+ATIVIDADE POR MODALIDADE:
+- Corrida: ${sm['activity_corrida.n']||0} sessões | ${sm['activity_corrida.km_total']||'—'} km | FC média ${sm['activity_corrida.fc_media']||'—'} bpm (máx ${sm['activity_corrida.fc_max']||'—'})
+- CrossFit: ${sm['activity_crossfit.n']||0} sessões | FC média ${sm['activity_crossfit.fc_media']||'—'} bpm (máx ${sm['activity_crossfit.fc_max']||'—'})
+- Outros: ${sm['activity_outros.n']||0} sessões
 
 SPO2 (${sm['spo2.n']||0} registros):
 - Média: ${sm['spo2.media']||'—'}% | Mínimo: ${sm['spo2.min']||'—'}%
@@ -1119,7 +1141,7 @@ SPO2 (${sm['spo2.n']||0} registros):
 SONO (${sm['sleep.n']||0} noites):
 - Média: ${sm['sleep.media_horas']||'—'}h | Noites <6h: ${sm['sleep.noites_lt6']||0} | Noites ≥7h: ${sm['sleep.noites_gte7']||0}
 
-ATIVIDADE:
+ATIVIDADE GERAL:
 - Passos médios/dia: ${sm['steps.media_diaria']||'—'} | Dias ≥10.000: ${sm['steps.dias_gte10000']||0}
 - Km em atividades: ${sm['activity.km_total']||'—'}`;
 }
