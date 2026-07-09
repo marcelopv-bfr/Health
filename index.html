@@ -737,15 +737,27 @@ function renderSleep() {
 }
 
 // ── ACTIVITY TYPE CLASSIFIER ──
-// RUNNING: "RUNNING", "running", "1001", "corrida"
-// CROSSFIT: "CIRCUIT_TRAINING","circuit","OTHER","other","10007","14001","outro treino","treino circuito","crossfit"
-function classifyActivity(tipo) {
-  const t = String(tipo||'').toLowerCase().trim();
-  if (!t || t === 'null') return 'outros';
+// Prioridade: 1) coluna "arquivo" (tipo real vindo do Samsung/Health Sync,
+// ex: RUNNING, CIRCUIT_TRAINING, TYPE_0, WALKING) — nunca deduzir pela presença de km.
+// 2) fallback legado: label embutido em valor2 no formato "dur|LABEL|hr|hr".
+function activityRawType(r) {
+  const fromArquivo = String(r.arquivo || '').toUpperCase().trim();
+  // pastas do Drive (ex: "Health Sync Atividades/RUNNING...") contêm "/" — ainda é válido,
+  // pega o texto após a última barra se houver
+  const afterSlash = fromArquivo.includes('/') ? fromArquivo.split('/').pop() : fromArquivo;
+  if (afterSlash && afterSlash !== 'DESCONHECIDO') return afterSlash;
+  const parts = String(r.valor2 || '').split('|');
+  return (parts[1] || '').toUpperCase().trim();
+}
+function classifyActivity(tipoRaw) {
+  const t = String(tipoRaw||'').toLowerCase().trim();
+  if (!t || t === 'null' || t === 'desconhecido') return 'outros';
   if (t.includes('run') || t === '1001' || t.includes('corrid')) return 'corrida';
+  if (t.includes('walk') || t.includes('caminhad')) return 'caminhada';
   if (t.includes('circuit') || t.includes('crossfit') || t.includes('outro treino')
-    || t.includes('treino circ') || t === 'other' || t === 'outro' || t === '10007'
-    || t === '14001' || t === 'functional' || t.includes('indoor')) return 'crossfit';
+    || t.includes('treino circ') || t === 'other' || t === 'outro' || t === '0'
+    || t === '10007' || t === '14001' || t === '11007' || t.startsWith('type_')
+    || t === 'functional' || t.includes('indoor')) return 'crossfit';
   return 'outros';
 }
 
@@ -770,17 +782,11 @@ function renderActivity() {
   document.getElementById('actContent').style.display = has ? 'block' : 'none';
   if (!has) return;
 
-  // classify activities
-  const corridas = acts.filter(r => classifyActivity(r.valor2 || r.valor) === 'corrida'
-    || classifyActivity(r.arquivo||'') === 'corrida');
-  const cfs = acts.filter(r => {
-    const t = classifyActivity(r.valor2 || r.valor);
-    return t === 'crossfit';
-  });
-  const outros = acts.filter(r => {
-    const t = classifyActivity(r.valor2 || r.valor);
-    return t === 'outros' && classifyActivity(r.arquivo||'') === 'outros';
-  });
+  // classifica cada atividade uma única vez, usando o tipo real (não a unidade/km)
+  const withType = acts.map(r => ({ r, tipo: classifyActivity(activityRawType(r)) }));
+  const corridas = withType.filter(x => x.tipo === 'corrida').map(x => x.r);
+  const cfs      = withType.filter(x => x.tipo === 'crossfit').map(x => x.r);
+  const outros   = withType.filter(x => x.tipo === 'outros' || x.tipo === 'caminhada').map(x => x.r);
 
   renderActGeral(sm, steps, acts, corridas, cfs);
   renderActCorrida(corridas, hrRecs);
@@ -1017,15 +1023,18 @@ function renderActCrossfit(cfs, hrRecs) {
     const n=String(t||'').toLowerCase();
     if(n.includes('circuit')) return 'Circuit Training';
     if(n.includes('other')||n==='outro') return 'Outro Treino';
+    if(n==='0') return 'Treino (tipo 0)';
     if(n==='10007') return 'Indoor (10007)';
+    if(n==='14001'||n==='11007') return 'Funcional';
     return t||'—';
   };
   for (const r of cfs.slice().sort((a,b)=>parseDMY(b.data)-parseDMY(a.data)).slice(0,50)) {
-    const dur=parseFloat(r.valor2)||0;
+    const durRaw = String(r.valor2||'').split('|')[0];
+    const dur = parseFloat(durRaw)||0;
     const hrsDay=hrRecs.filter(x=>x.data===r.data&&+x.valor>100).map(x=>+x.valor);
     const fcStr=hrsDay.length?Math.round(hrsDay.reduce((a,b)=>a+b,0)/hrsDay.length)+' bpm':'—';
     tbody.insertAdjacentHTML('beforeend',
-      `<tr><td>${r.data}</td><td>${r.hora||'—'}</td><td style="color:var(--muted)">${tipoLabel(r.valor2||r.valor)}</td><td>${dur?fmtDuration(dur):'—'}</td><td>${fcStr}</td></tr>`);
+      `<tr><td>${r.data}</td><td>${r.hora||'—'}</td><td style="color:var(--muted)">${tipoLabel(activityRawType(r))}</td><td>${dur?fmtDuration(dur):'—'}</td><td>${fcStr}</td></tr>`);
   }
 }
 
@@ -1037,7 +1046,9 @@ function renderActOutros(outros) {
   document.getElementById('otKm').innerHTML=(kms.reduce((a,b)=>a+b,0)).toFixed(1)+'<span class="stat-u">km</span>';
   const tbody=document.getElementById('otTable'); tbody.innerHTML='';
   for(const r of outros.slice().sort((a,b)=>parseDMY(b.data)-parseDMY(a.data)).slice(0,50)){
-    tbody.insertAdjacentHTML('beforeend',`<tr><td>${r.data}</td><td style="color:var(--muted)">${r.valor2||r.valor||'—'}</td><td>${parseFloat(r.valor)>0?parseFloat(r.valor).toFixed(2)+' km':'—'}</td><td>${r.valor2?fmtDuration(parseFloat(r.valor2)):'—'}</td></tr>`);
+    const durRaw = String(r.valor2||'').split('|')[0];
+    const dur = parseFloat(durRaw)||0;
+    tbody.insertAdjacentHTML('beforeend',`<tr><td>${r.data}</td><td style="color:var(--muted)">${activityRawType(r)||'—'}</td><td>${parseFloat(r.valor)>0?parseFloat(r.valor).toFixed(2)+' km':'—'}</td><td>${dur?fmtDuration(dur):'—'}</td></tr>`);
   }
 }
 
