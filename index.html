@@ -56,6 +56,12 @@ header{background:var(--card);border-bottom:1px solid var(--border);position:sti
 
 main{max-width:1100px;margin:0 auto;padding:1.25rem;}
 
+/* ── ACTIVITY FILTER BAR ── */
+.act-filter{display:flex;gap:.5rem;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;}
+.act-filter-sel{font-family:var(--sans);font-size:.78rem;padding:.45rem .7rem;border-radius:8px;border:1px solid var(--border-strong);background:var(--card);color:var(--ink);}
+.act-filter-sel:focus{outline:2px solid var(--teal);outline-offset:-1px;}
+.act-filter-count{font-family:var(--mono);font-size:.7rem;color:var(--muted);margin-left:.25rem;}
+
 /* ── ACTIVITY SUB-TABS ── */
 .act-subtabs{display:flex;gap:.4rem;overflow-x:auto;margin-bottom:1.25rem;-webkit-overflow-scrolling:touch;padding-bottom:.1rem;}
 .act-tab{font-size:.78rem;font-weight:500;padding:.5rem 1rem;border-radius:10px;cursor:pointer;color:var(--muted);background:var(--card);border:1px solid var(--border);white-space:nowrap;transition:all .15s;}
@@ -277,6 +283,20 @@ footer{max-width:1100px;margin:2rem auto 0;padding:0 1.25rem;text-align:center;f
       <button class="act-tab" data-act="outros">Outros</button>
     </div>
 
+    <!-- filtro de período (aplica a todas as modalidades) -->
+    <div class="act-filter">
+      <select id="actFilterMode" class="act-filter-sel" onchange="onActFilterModeChange()">
+        <option value="all">Todo o período</option>
+        <option value="year">Por ano</option>
+        <option value="month">Por mês</option>
+        <option value="day">Por dia</option>
+      </select>
+      <select id="actFilterYear" class="act-filter-sel" style="display:none" onchange="applyActivityFilter()"></select>
+      <select id="actFilterMonth" class="act-filter-sel" style="display:none" onchange="applyActivityFilter()"></select>
+      <input id="actFilterDay" type="date" class="act-filter-sel" style="display:none" onchange="applyActivityFilter()">
+      <span class="act-filter-count" id="actFilterCount"></span>
+    </div>
+
     <!-- ── GERAL ── -->
     <div class="act-panel active" id="act-geral">
       <div class="stats">
@@ -328,8 +348,8 @@ footer{max-width:1100px;margin:2rem auto 0;padding:0 1.25rem;text-align:center;f
         <div class="stat"><div class="stat-l">Streak atual</div><div class="stat-v c-green" id="cfStreak">—<span class="stat-u">dias</span></div></div>
       </div>
       <div class="grid">
-        <div class="card wide"><div class="card-hdr"><span class="card-t">Sessões por semana</span><span class="card-m" id="cfChartMeta">—</span></div><canvas id="chartCFweek" height="110"></canvas></div>
-        <div class="card"><div class="card-hdr"><span class="card-t">FC nas sessões</span><span class="card-m">últimas 30</span></div><canvas id="chartCFhr" height="160"></canvas></div>
+        <div class="card wide"><div class="card-hdr"><span class="card-t">FC média das sessões</span><span class="card-m">últimas 30 · janela real do treino</span></div><canvas id="chartCFhr" height="110"></canvas></div>
+        <div class="card"><div class="card-hdr"><span class="card-t">Sessões por semana</span><span class="card-m" id="cfChartMeta">—</span></div><canvas id="chartCFweek" height="160"></canvas></div>
         <div class="card"><div class="card-hdr"><span class="card-t">Dias da semana</span></div><canvas id="chartCFdays" height="160"></canvas></div>
       </div>
       <div class="tbl-wrap">
@@ -583,7 +603,7 @@ function splitCsv(line) {
 }
 
 // ── RENDER ──
-function renderAll() { renderOverview(); renderBP(); renderSleep(); renderActivity(); }
+function renderAll() { populateActivityFilterOptions(); renderOverview(); renderBP(); renderSleep(); renderActivity(); }
 
 function renderOverview() {
   document.getElementById('ovEmpty').style.display = 'none';
@@ -771,11 +791,77 @@ document.querySelectorAll('.act-tab').forEach(btn =>
   })
 );
 
+// ── FILTRO DE PERÍODO (dia/mês/ano/tudo) — aplica a todas as modalidades ──
+function populateActivityFilterOptions() {
+  const acts = S.data.records.filter(r => r.metrica === 'activity');
+  const dates = acts.map(r => parseDMY(r.data)).filter(Boolean);
+  if (!dates.length) return;
+
+  const years = [...new Set(dates.map(d => d.getFullYear()))].sort((a,b) => b-a);
+  const yearSel = document.getElementById('actFilterYear');
+  yearSel.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
+
+  const monthNames = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const monthSel = document.getElementById('actFilterMonth');
+  monthSel.innerHTML = monthNames.map((m,i) => `<option value="${i}">${m}</option>`).join('');
+
+  const dayInput = document.getElementById('actFilterDay');
+  const maxD = new Date(Math.max(...dates));
+  const minD = new Date(Math.min(...dates));
+  dayInput.max = maxD.toISOString().split('T')[0];
+  dayInput.min = minD.toISOString().split('T')[0];
+  dayInput.value = maxD.toISOString().split('T')[0];
+}
+
+function onActFilterModeChange() {
+  const mode = document.getElementById('actFilterMode').value;
+  document.getElementById('actFilterYear').style.display  = (mode === 'year' || mode === 'month') ? 'inline-block' : 'none';
+  document.getElementById('actFilterMonth').style.display = (mode === 'month') ? 'inline-block' : 'none';
+  document.getElementById('actFilterDay').style.display   = (mode === 'day') ? 'inline-block' : 'none';
+  applyActivityFilter();
+}
+
+function getActivityDateFilter() {
+  const mode = document.getElementById('actFilterMode').value;
+  if (mode === 'all') return null;
+  if (mode === 'year') {
+    const y = +document.getElementById('actFilterYear').value;
+    return d => d && d.getFullYear() === y;
+  }
+  if (mode === 'month') {
+    const y = +document.getElementById('actFilterYear').value;
+    const m = +document.getElementById('actFilterMonth').value;
+    return d => d && d.getFullYear() === y && d.getMonth() === m;
+  }
+  if (mode === 'day') {
+    const val = document.getElementById('actFilterDay').value; // yyyy-mm-dd
+    if (!val) return null;
+    const [y,m,dd] = val.split('-').map(Number);
+    return d => d && d.getFullYear() === y && d.getMonth() === m-1 && d.getDate() === dd;
+  }
+  return null;
+}
+
+function applyActivityFilter() {
+  renderActivity();
+}
+
 function renderActivity() {
   const sm = S.data.summary;
-  const acts = S.data.records.filter(r => r.metrica === 'activity');
-  const steps = S.data.records.filter(r => r.metrica === 'steps');
-  const hrRecs = S.data.records.filter(r => r.metrica === 'heart_rate');
+  const filterFn = getActivityDateFilter();
+
+  let acts   = S.data.records.filter(r => r.metrica === 'activity');
+  let steps  = S.data.records.filter(r => r.metrica === 'steps');
+  let hrRecs = S.data.records.filter(r => r.metrica === 'heart_rate');
+
+  if (filterFn) {
+    acts   = acts.filter(r => filterFn(parseDMY(r.data)));
+    steps  = steps.filter(r => filterFn(parseDMY(r.data)));
+    hrRecs = hrRecs.filter(r => filterFn(parseDMY(r.data)));
+    document.getElementById('actFilterCount').textContent = `${acts.length} atividades no período`;
+  } else {
+    document.getElementById('actFilterCount').textContent = '';
+  }
 
   const has = steps.length || acts.length;
   document.getElementById('actEmpty').style.display = has ? 'none' : 'block';
@@ -812,14 +898,38 @@ function renderActGeral(sm, steps, acts, corridas, cfs) {
   const kmTotal = acts.map(r => parseFloat(r.valor)).filter(v => !isNaN(v) && v > 0).reduce((a,b)=>a+b,0);
   document.getElementById('acKm').innerHTML = kmTotal.toFixed(1) + '<span class="stat-u">km</span>';
 
-  // FC segmentada repouso vs treino (calculada no backend Code.gs)
-  if (sm['heart_rate_repouso.media']) {
+  // FC segmentada repouso vs treino — usa o resumo do backend quando sem filtro (mais completo,
+  // cobre todo o histórico), ou recalcula localmente com janelas reais quando há filtro de período.
+  const filterActive = document.getElementById('actFilterMode').value !== 'all';
+  if (!filterActive && sm['heart_rate_repouso.media']) {
     document.getElementById('acHRrest').innerHTML = Math.round(sm['heart_rate_repouso.media']) + '<span class="stat-u">bpm</span>';
     document.getElementById('acHRrestSub').textContent = `n=${sm['heart_rate_repouso.n']||0} · faixa ${sm['heart_rate_repouso.min']||'—'}-${sm['heart_rate_repouso.max']||'—'}`;
-  }
-  if (sm['heart_rate_treino.media']) {
     document.getElementById('acHRtrain').innerHTML = Math.round(sm['heart_rate_treino.media']) + '<span class="stat-u">bpm</span>';
     document.getElementById('acHRtrainSub').textContent = `n=${sm['heart_rate_treino.n']||0} · máx ${sm['heart_rate_treino.max']||'—'}`;
+  } else {
+    const allHR = S.data.records.filter(r => r.metrica === 'heart_rate' && +r.valor > 30 && +r.valor < 220);
+    const hrInPeriod = document.getElementById('actFilterMode').value === 'all'
+      ? allHR
+      : allHR.filter(r => getActivityDateFilter()(parseDMY(r.data)));
+    const hrTsAll = hrInPeriod.map(r => ({ ts: parseDMYTime(`${r.data} ${r.hora||'00:00'}`), v: +r.valor })).filter(x=>x.ts);
+    const windows = acts.map(r => {
+      const start = parseDMYTime(`${r.data} ${r.hora||'00:00'}`);
+      const durSec = parseFloat(String(r.valor2||'').split('|')[0]) || 3600;
+      return start ? { start, end: start + Math.max(durSec,300)*1000 } : null;
+    }).filter(Boolean);
+    const treino = [], repouso = [];
+    for (const h of hrTsAll) {
+      const inTraining = windows.some(w => h.ts >= w.start && h.ts <= w.end);
+      (inTraining ? treino : repouso).push(h.v);
+    }
+    if (repouso.length) {
+      document.getElementById('acHRrest').innerHTML = Math.round(repouso.reduce((a,b)=>a+b,0)/repouso.length) + '<span class="stat-u">bpm</span>';
+      document.getElementById('acHRrestSub').textContent = `n=${repouso.length} · faixa ${Math.min(...repouso)}-${Math.max(...repouso)}`;
+    } else { document.getElementById('acHRrest').innerHTML = '—'; document.getElementById('acHRrestSub').textContent = 'sem dados no período'; }
+    if (treino.length) {
+      document.getElementById('acHRtrain').innerHTML = Math.round(treino.reduce((a,b)=>a+b,0)/treino.length) + '<span class="stat-u">bpm</span>';
+      document.getElementById('acHRtrainSub').textContent = `n=${treino.length} · máx ${Math.max(...treino)}`;
+    } else { document.getElementById('acHRtrain').innerHTML = '—'; document.getElementById('acHRtrainSub').textContent = 'sem dados no período'; }
   }
 
   // Passos chart
@@ -948,7 +1058,7 @@ function renderActCrossfit(cfs, hrRecs) {
   document.getElementById('cfEmpty').style.display = isEmpty ? 'block' : 'none';
   if (isEmpty) return;
 
-  const durs = cfs.map(r=>parseFloat(r.valor2)).filter(v=>!isNaN(v)&&v>0);
+  const durs = cfs.map(r=>parseFloat(String(r.valor2||'').split('|')[0])).filter(v=>!isNaN(v)&&v>0);
   const avgDur = durs.length ? durs.reduce((a,b)=>a+b,0)/durs.length : 0;
 
   // Sessões por semana
@@ -957,11 +1067,29 @@ function renderActCrossfit(cfs, hrRecs) {
   const wkVals = Object.values(byWeek);
   const avgPerWeek = wkVals.length ? (wkVals.reduce((a,b)=>a+b,0)/wkVals.length).toFixed(1) : '—';
 
-  // FC CrossFit (dias com treino)
-  const cfDates = new Set(cfs.map(r=>r.data));
-  const cfHRs = hrRecs.filter(r=>cfDates.has(r.data)&&+r.valor>100).map(r=>+r.valor);
-  const cfHRmax = cfHRs.length ? Math.max(...cfHRs) : 0;
-  const cfHRavg = cfHRs.length ? Math.round(cfHRs.reduce((a,b)=>a+b,0)/cfHRs.length) : 0;
+  // ── FC por sessão: usa a JANELA REAL do treino (timestamp início → início+duração) ──
+  // em vez de "qualquer FC>100 no mesmo dia", que é impreciso.
+  function sessionWindow(r) {
+    const dtStr = `${r.data} ${r.hora||'00:00'}`;
+    const start = parseDMYTime(dtStr);
+    const durSec = parseFloat(String(r.valor2||'').split('|')[0]) || 3600;
+    return start ? { start, end: start + Math.max(durSec,300)*1000 } : null;
+  }
+  const hrTsRecs = hrRecs.map(r => ({ ts: parseDMYTime(`${r.data} ${r.hora||'00:00'}`), v: +r.valor })).filter(x => x.ts && x.v > 30);
+
+  const sessionAvgHR = []; // FC média de cada sessão individual (para o gráfico)
+  let allCfHRs = [];
+  for (const r of cfs) {
+    const w = sessionWindow(r);
+    if (!w) continue;
+    const hrsIn = hrTsRecs.filter(x => x.ts >= w.start && x.ts <= w.end).map(x => x.v);
+    if (hrsIn.length) {
+      sessionAvgHR.push({ data: r.data, hora: r.hora, avg: hrsIn.reduce((a,b)=>a+b,0)/hrsIn.length, max: Math.max(...hrsIn), ts: w.start });
+      allCfHRs.push(...hrsIn);
+    }
+  }
+  const cfHRmax = allCfHRs.length ? Math.max(...allCfHRs) : 0;
+  const cfHRavg = allCfHRs.length ? Math.round(allCfHRs.reduce((a,b)=>a+b,0)/allCfHRs.length) : 0;
 
   // Streak atual
   const cfDatesSorted = [...new Set(cfs.map(r=>r.data))].sort().reverse();
@@ -983,6 +1111,20 @@ function renderActCrossfit(cfs, hrRecs) {
   document.getElementById('cfDur').innerHTML = (avgDur?Math.round(avgDur/60):'—') + '<span class="stat-u">min</span>';
   document.getElementById('cfStreak').innerHTML = streak + '<span class="stat-u">semanas</span>';
 
+  // ── FC média das sessões (PRIMEIRO gráfico, como pedido) ──
+  destroy('chartCFhr');
+  const last30 = sessionAvgHR.slice().sort((a,b)=>a.ts-b.ts).slice(-30);
+  if (last30.length) {
+    mkChart('chartCFhr','bar', last30.map(s=>s.data), [{
+      label:'FC média da sessão (bpm)', data: last30.map(s=>Math.round(s.avg)),
+      backgroundColor: last30.map(s=>s.avg>165?'#D92D20':s.avg>145?'#F79009':'#175CD3'),
+      borderRadius:4
+    }]);
+  } else {
+    const metaEl = document.querySelector('#tab-activity #act-crossfit .card-hdr .card-m');
+    if (metaEl) metaEl.textContent = 'sem dados de FC nas janelas de treino';
+  }
+
   // Sessões por semana chart
   destroy('chartCFweek');
   const wks = Object.keys(byWeek).sort().slice(-20);
@@ -992,19 +1134,6 @@ function renderActCrossfit(cfs, hrRecs) {
     backgroundColor: wks.map(w=>byWeek[w]>=4?'#0E9384':byWeek[w]>=3?'#175CD3':'#94A3B8'),
     borderRadius:4
   }],{y:{min:0,max:7,ticks:{stepSize:1}}});
-
-  // FC chart
-  destroy('chartCFhr');
-  const last30cf = cfs.slice().sort((a,b)=>parseDMY(a.data)-parseDMY(b.data)).slice(-30);
-  if (cfHRs.length) {
-    mkChart('chartCFhr','bar',last30cf.map(r=>r.data),[{
-      label:'FC (bpm)', data: last30cf.map(r=>{
-        const h=hrRecs.filter(x=>x.data===r.data&&+x.valor>100).map(x=>+x.valor);
-        return h.length?Math.round(h.reduce((a,b)=>a+b,0)/h.length):null;
-      }),
-      backgroundColor:'#F79009', borderRadius:4
-    }]);
-  }
 
   // Dias da semana
   destroy('chartCFdays');
@@ -1018,6 +1147,8 @@ function renderActCrossfit(cfs, hrRecs) {
   }]},options:{...baseOpts(),plugins:{legend:{display:false}}}});
 
   // Tabela
+  const sessionHRMap = {};
+  sessionAvgHR.forEach(s => { sessionHRMap[s.data+'|'+(s.hora||'')] = s; });
   const tbody=document.getElementById('cfTable'); tbody.innerHTML='';
   const tipoLabel = t => {
     const n=String(t||'').toLowerCase();
@@ -1031,8 +1162,8 @@ function renderActCrossfit(cfs, hrRecs) {
   for (const r of cfs.slice().sort((a,b)=>parseDMY(b.data)-parseDMY(a.data)).slice(0,50)) {
     const durRaw = String(r.valor2||'').split('|')[0];
     const dur = parseFloat(durRaw)||0;
-    const hrsDay=hrRecs.filter(x=>x.data===r.data&&+x.valor>100).map(x=>+x.valor);
-    const fcStr=hrsDay.length?Math.round(hrsDay.reduce((a,b)=>a+b,0)/hrsDay.length)+' bpm':'—';
+    const sess = sessionHRMap[r.data+'|'+(r.hora||'')];
+    const fcStr = sess ? `${Math.round(sess.avg)} bpm (máx ${sess.max})` : '—';
     tbody.insertAdjacentHTML('beforeend',
       `<tr><td>${r.data}</td><td>${r.hora||'—'}</td><td style="color:var(--muted)">${tipoLabel(activityRawType(r))}</td><td>${dur?fmtDuration(dur):'—'}</td><td>${fcStr}</td></tr>`);
   }
@@ -1060,6 +1191,13 @@ function parseDMY(str) {
   if (m) return new Date(+m[3],+m[2]-1,+m[1]);
   const d = new Date(str);
   return isNaN(d)?null:d;
+}
+// Retorna timestamp (ms) a partir de "dd/MM/yyyy HH:mm"
+function parseDMYTime(str) {
+  if (!str) return null;
+  const m = str.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
+  if (!m) { const d = parseDMY(str); return d ? d.getTime() : null; }
+  return new Date(+m[3],+m[2]-1,+m[1],+m[4],+m[5]).getTime();
 }
 function mondayOf(d) {
   const day=d.getDay(), diff=d.getDate()-day+(day===0?-6:1);
@@ -1123,14 +1261,44 @@ function buildHealthSummary() {
   const bps = S.data.records.filter(r => r.metrica === 'blood_pressure').slice(-30);
   const bpLines = bps.map(r => `${r.data} ${r.hora}: ${Math.round(r.valor)}/${Math.round(r.valor2)} mmHg`).join('\n');
 
+  // ── Correlação PA × horário pós-treino ──
+  // Marca cada medição de PA como "pós-treino" se caiu dentro de até 3h após o FIM
+  // de alguma sessão de atividade (usa duração real quando disponível, senão 60min).
+  const allBP = S.data.records.filter(r => r.metrica === 'blood_pressure');
+  const allActs = S.data.records.filter(r => r.metrica === 'activity');
+  const POST_WORKOUT_WINDOW_H = 3;
+
+  const actWindows = allActs.map(r => {
+    const start = parseDMYTime(`${r.data} ${r.hora||'00:00'}`);
+    if (!start) return null;
+    const durSec = parseFloat(String(r.valor2||'').split('|')[0]) || 3600;
+    const end = start + Math.max(durSec, 300) * 1000;
+    return { start, end, postEnd: end + POST_WORKOUT_WINDOW_H * 3600 * 1000 };
+  }).filter(Boolean);
+
+  const bpPost = [], bpNormal = [];
+  for (const r of allBP) {
+    const ts = parseDMYTime(`${r.data} ${r.hora||'00:00'}`);
+    if (!ts) continue;
+    const isPost = actWindows.some(w => ts > w.end && ts <= w.postEnd);
+    (isPost ? bpPost : bpNormal).push(r);
+  }
+  const avgSys = arr => arr.length ? (arr.reduce((a,r)=>a+ +r.valor,0)/arr.length).toFixed(1) : '—';
+  const avgDia = arr => arr.length ? (arr.reduce((a,r)=>a+ +r.valor2,0)/arr.length).toFixed(1) : '—';
+
   return `DADOS DE SAÚDE — WEARABLES (Samsung Galaxy Watch 6 + Huawei Watch D2)
 Período monitorado, resumo agregado:
 
 PRESSÃO ARTERIAL (${sm['blood_pressure.n']||0} medições, cuff inflável Huawei Watch D2):
-- Média: ${sm['blood_pressure.sys_media']||'—'}/${sm['blood_pressure.dia_media']||'—'} mmHg
+- Média geral: ${sm['blood_pressure.sys_media']||'—'}/${sm['blood_pressure.dia_media']||'—'} mmHg
 - Faixa sistólica: ${sm['blood_pressure.sys_min']||'—'}–${sm['blood_pressure.sys_max']||'—'} mmHg
 - Últimas 30 medições:
 ${bpLines || '(sem registros)'}
+
+PRESSÃO ARTERIAL — SEGMENTADA POR CONTEXTO (usando horário das sessões de treino):
+- Medições até ${POST_WORKOUT_WINDOW_H}h APÓS o fim de um treino (${bpPost.length} medições): média ${avgSys(bpPost)}/${avgDia(bpPost)} mmHg
+- Medições em contexto normal, fora dessa janela pós-treino (${bpNormal.length} medições): média ${avgSys(bpNormal)}/${avgDia(bpNormal)} mmHg
+(Use essa comparação para avaliar se há elevação pressórica pós-exercício fora do esperado, considerando o perfil cardiovascular do paciente.)
 
 FREQUÊNCIA CARDÍACA — GERAL (${sm['heart_rate.n']||0} registros, inclui repouso + treino):
 - Média: ${sm['heart_rate.media']||'—'} bpm | Mín: ${sm['heart_rate.min']||'—'} | Máx: ${sm['heart_rate.max']||'—'}
@@ -1167,7 +1335,7 @@ const AI_INSTRUCTIONS = `Você é um assistente de análise de dados de saúde. 
 Forneça:
 1. TENDÊNCIAS: o que os dados mostram (PA, FC, SpO2, sono, atividade)
 2. PONTOS DE ATENÇÃO: valores ou padrões que merecem observação, no contexto do perfil cardiovascular
-3. CORRELAÇÕES: possíveis relações entre métricas (ex: sono ruim ↔ PA elevada)
+3. CORRELAÇÕES: possíveis relações entre métricas — inclua obrigatoriamente uma leitura da seção "PRESSÃO ARTERIAL — SEGMENTADA POR CONTEXTO": compare a PA pós-treino com a PA em contexto normal e comente se a diferença (se houver) é esperada fisiologicamente ou merece atenção, dado o perfil cardiovascular do paciente. Considere também outras correlações (ex: sono ruim ↔ PA elevada)
 4. PERGUNTAS PARA OS MÉDICOS: 3-5 perguntas específicas para cardiologista/endocrinologista baseadas nesses dados
 Seja objetivo e baseado apenas nos dados. Não faça diagnósticos. Responda em português.`;
 
