@@ -464,6 +464,10 @@ footer{max-width:1100px;margin:2rem auto 0;padding:0 1.25rem;text-align:center;f
   <div class="modal-box">
     <div class="modal-title" id="medModalTitle">Confirmar aplicação</div>
     <div class="modal-body" id="medModalBody"></div>
+    <div id="medModalDateRow" style="display:none;margin:-.5rem 0 1.1rem">
+      <label class="med-date-l" style="display:block;margin-bottom:.3rem">Data em que foi aplicado</label>
+      <input type="date" id="medModalDateInput" class="inp" style="width:100%" onchange="onMedModalDateChange()">
+    </div>
     <div class="modal-actions">
       <button class="btn btn-muted" onclick="closeMedModal()">Cancelar</button>
       <button class="btn btn-primary" id="medModalConfirmBtn" onclick="confirmMedModalAction()">Confirmar</button>
@@ -1441,19 +1445,44 @@ function fmtISOToBR(iso) { const [y,m,d] = iso.split('-'); return `${d}/${m}/${y
 function openRegisterModal(nome, freqDias, dose, via) {
   MedsState.pendingAction = { type: 'registrar', nome, freqDias, dose, via };
   const hojeISO = new Date().toISOString().split('T')[0];
-  const proximaCalc = new Date(Date.now() + freqDias * 86400000).toISOString().split('T')[0];
+
   document.getElementById('medModalTitle').textContent = 'Registrar aplicação — ' + nome;
-  document.getElementById('medModalBody').innerHTML =
-    `Confirma que a aplicação de <strong>${nome}</strong> foi feita hoje (${fmtISOToBR(hojeISO)})?<br><br>` +
-    `A próxima aplicação calculada será <strong>${fmtISOToBR(proximaCalc)}</strong> (a cada ${freqDias} dias).<br><br>` +
-    `Depois de confirmar, você poderá criar o lembrete no Google Calendar em um segundo passo.`;
+  document.getElementById('medModalDateRow').style.display = 'block';
+  const dateInput = document.getElementById('medModalDateInput');
+  dateInput.value = hojeISO;
+  dateInput.max = hojeISO; // não faz sentido registrar aplicação no futuro
+
+  updateRegisterModalBody(nome, freqDias, hojeISO);
   document.getElementById('medModalConfirmBtn').textContent = 'Confirmar aplicação';
   document.getElementById('medModalBackdrop').style.display = 'flex';
+}
+
+function onMedModalDateChange() {
+  const action = MedsState.pendingAction;
+  if (!action || action.type !== 'registrar') return;
+  const dataISO = document.getElementById('medModalDateInput').value;
+  if (!dataISO) return;
+  updateRegisterModalBody(action.nome, action.freqDias, dataISO);
+}
+
+function updateRegisterModalBody(nome, freqDias, dataISO) {
+  const hojeISO = new Date().toISOString().split('T')[0];
+  const isPast = dataISO < hojeISO;
+  const [y,m,d] = dataISO.split('-').map(Number);
+  const proximaCalc = new Date(y, m-1, d + Number(freqDias)).toISOString().split('T')[0];
+
+  document.getElementById('medModalBody').innerHTML =
+    (isPast
+      ? `Registrar aplicação de <strong>${nome}</strong> em <strong>${fmtISOToBR(dataISO)}</strong> (data retroativa — ajuste o campo abaixo se quiser mudar).<br><br>`
+      : `Confirma que a aplicação de <strong>${nome}</strong> foi feita em <strong>${fmtISOToBR(dataISO)}</strong>?<br><br>`) +
+    `A próxima aplicação será recalculada para <strong>${fmtISOToBR(proximaCalc)}</strong> (a cada ${freqDias} dias a partir da data informada).<br><br>` +
+    `Depois de confirmar, você poderá criar o lembrete no Google Calendar em um segundo passo.`;
 }
 
 // ── Modal: criar lembrete no Calendar para uma próxima aplicação já calculada ──
 function openCalendarModal(nome, dose, via, proximaISO) {
   MedsState.pendingAction = { type: 'calendar', nome, dose, via, proximaISO };
+  document.getElementById('medModalDateRow').style.display = 'none';
   document.getElementById('medModalTitle').textContent = 'Criar lembrete no Calendar';
   document.getElementById('medModalBody').innerHTML =
     `Criar um evento no seu Google Calendar para <strong>${nome}</strong> em <strong>${fmtISOToBR(proximaISO)}</strong>, ` +
@@ -1464,6 +1493,7 @@ function openCalendarModal(nome, dose, via, proximaISO) {
 
 function closeMedModal() {
   document.getElementById('medModalBackdrop').style.display = 'none';
+  document.getElementById('medModalDateRow').style.display = 'none';
   MedsState.pendingAction = null;
 }
 
@@ -1475,9 +1505,11 @@ async function confirmMedModalAction() {
 
   try {
     if (action.type === 'registrar') {
-      const result = await callMedsApi('registrar_aplicacao', { nome: action.nome });
+      const dataISO = document.getElementById('medModalDateInput').value || null;
+      const result = await callMedsApi('registrar_aplicacao', { nome: action.nome, data: dataISO });
       closeMedModal();
-      showAlert(`✓ Aplicação de ${action.nome} registrada. Próxima: ${result.proxima_aplicacao ? fmtISOToBR(result.proxima_aplicacao) : '—'}.`, 'info');
+      const dataLabel = dataISO ? fmtISOToBR(dataISO) : 'hoje';
+      showAlert(`✓ Aplicação de ${action.nome} registrada em ${dataLabel}. Próxima: ${result.proxima_aplicacao ? fmtISOToBR(result.proxima_aplicacao) : '—'}.`, 'info');
       await loadMedicamentos();
       // Oferece imediatamente a criação do lembrete para a nova data calculada
       if (result.proxima_aplicacao) {
