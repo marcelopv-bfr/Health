@@ -140,6 +140,38 @@ td{padding:.55rem .6rem;border-bottom:1px solid var(--border);font-family:var(--
 tr:last-child td{border-bottom:none;}
 .src-samsung{color:var(--blue);}.src-huawei{color:var(--red);}.src-healthsync{color:var(--teal-deep);}
 
+/* ── MEDICAMENTOS ── */
+.med-grid{display:grid;grid-template-columns:1fr;gap:.85rem;margin-bottom:1.25rem;}
+@media(min-width:700px){.med-grid{grid-template-columns:1fr 1fr;}}
+.med-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.1rem 1.2rem;box-shadow:var(--shadow);}
+.med-card.due-soon{border-color:#F79009;box-shadow:0 0 0 1px #F7900930, var(--shadow);}
+.med-card.overdue{border-color:var(--red);box-shadow:0 0 0 1px #D92D2030, var(--shadow);}
+.med-hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;margin-bottom:.6rem;}
+.med-name{font-weight:600;font-size:.9rem;}
+.med-dose{font-size:.72rem;color:var(--muted);margin-top:1px;}
+.med-badge{font-size:.62rem;font-weight:600;padding:.2rem .55rem;border-radius:999px;white-space:nowrap;}
+.med-badge.ok{background:var(--green-soft);color:var(--green);}
+.med-badge.soon{background:var(--amber-soft);color:var(--amber);}
+.med-badge.late{background:var(--red-soft);color:var(--red);}
+.med-badge.none{background:var(--bg);color:var(--faint);border:1px solid var(--border);}
+.med-dates{display:flex;gap:1.5rem;margin:.6rem 0;}
+.med-date-item{display:flex;flex-direction:column;gap:1px;}
+.med-date-l{font-size:.6rem;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;}
+.med-date-v{font-family:var(--mono);font-size:.82rem;}
+.med-actions{display:flex;gap:.5rem;margin-top:.5rem;flex-wrap:wrap;}
+.med-daily-list{display:flex;flex-direction:column;gap:.5rem;}
+.med-daily-item{display:flex;justify-content:space-between;align-items:center;padding:.6rem .85rem;background:var(--card);border:1px solid var(--border);border-radius:10px;font-size:.8rem;}
+.med-daily-item .nm{font-weight:500;}
+.med-daily-item .ds{color:var(--muted);font-size:.72rem;margin-left:.4rem;}
+
+/* modal simples de confirmação */
+.modal-backdrop{position:fixed;inset:0;background:rgba(22,35,46,.45);display:flex;align-items:center;justify-content:center;z-index:200;padding:1.25rem;}
+.modal-box{background:var(--card);border-radius:var(--radius);padding:1.4rem;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(22,35,46,.25);}
+.modal-title{font-size:.95rem;font-weight:600;margin-bottom:.5rem;}
+.modal-body{font-size:.82rem;color:var(--muted);line-height:1.6;margin-bottom:1.1rem;}
+.modal-body strong{color:var(--ink);}
+.modal-actions{display:flex;gap:.6rem;justify-content:flex-end;}
+
 /* ── CONFIG / SETUP ── */
 .cfg{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow);margin-bottom:1.25rem;}
 .cfg-t{font-size:.85rem;font-weight:600;margin-bottom:.65rem;}
@@ -205,6 +237,7 @@ footer{max-width:1100px;margin:2rem auto 0;padding:0 1.25rem;text-align:center;f
   <button class="tab-t" data-tab="sleep">Sono</button>
   <button class="tab-t" data-tab="activity">Atividade</button>
   <button class="tab-t" data-tab="ai">Análise IA</button>
+  <button class="tab-t" data-tab="meds">💊 Medicamentos</button>
   <button class="tab-t" data-tab="settings">Ajustes</button>
 </div>
 
@@ -406,6 +439,38 @@ footer{max-width:1100px;margin:2rem auto 0;padding:0 1.25rem;text-align:center;f
   </div>
 </div>
 
+<!-- ═══ MEDICAMENTOS ═══ -->
+<div class="tab-panel" id="tab-meds">
+  <div id="medsEmpty" class="empty"><div class="ic">💊</div><p>Conecte a planilha e o Web App do Apps Script em <strong>Ajustes</strong> para ver seus medicamentos.</p></div>
+  <div id="medsContent" style="display:none">
+
+    <div class="card-hdr" style="margin-bottom:.75rem">
+      <span class="card-t" style="font-size:.9rem">Medicamentos periódicos</span>
+      <span class="card-m" id="medsPeriodicMeta">—</span>
+    </div>
+    <div class="med-grid" id="medsPeriodicGrid"></div>
+
+    <div class="card-hdr" style="margin-bottom:.75rem;margin-top:.5rem">
+      <span class="card-t" style="font-size:.9rem">Contínuos / diários</span>
+      <span class="card-m">checklist informativo — sem cálculo de próxima dose</span>
+    </div>
+    <div class="med-daily-list" id="medsDailyList"></div>
+
+  </div>
+</div>
+
+<!-- Modal de confirmação: registrar aplicação + criar lembrete -->
+<div class="modal-backdrop" id="medModalBackdrop" style="display:none">
+  <div class="modal-box">
+    <div class="modal-title" id="medModalTitle">Confirmar aplicação</div>
+    <div class="modal-body" id="medModalBody"></div>
+    <div class="modal-actions">
+      <button class="btn btn-muted" onclick="closeMedModal()">Cancelar</button>
+      <button class="btn btn-primary" id="medModalConfirmBtn" onclick="confirmMedModalAction()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ SETTINGS ═══ -->
 <div class="tab-panel" id="tab-settings">
   <div class="cfg">
@@ -428,6 +493,22 @@ footer{max-width:1100px;margin:2rem auto 0;padding:0 1.25rem;text-align:center;f
       Com uma chave, o botão <strong>"Analisar com Claude"</strong> funciona direto no app (uso da API é cobrado pela Anthropic — centavos por análise).<br>
       Sem chave, use <strong>"Copiar prompt"</strong> na aba Análise IA e cole no app do Claude — gratuito com sua assinatura.<br>
       A chave fica salva apenas neste aparelho (localStorage).
+    </div>
+  </div>
+
+  <div class="cfg">
+    <div class="cfg-t">💊 Medicamentos — conexão com o Web App</div>
+    <div class="cfg-row">
+      <input class="inp" id="medsWebAppUrl" placeholder="URL do Web App (termina em /exec)">
+      <button class="btn btn-primary" onclick="saveMedsConfig()">Salvar</button>
+    </div>
+    <div class="cfg-row" style="margin-top:.5rem">
+      <input class="inp" id="medsApiToken" type="password" placeholder="Token (o mesmo definido em CONFIG.API_TOKEN no Code.gs)">
+    </div>
+    <div class="hint">
+      No Apps Script: <strong>Implantar → Nova implantação → Aplicativo da Web</strong> → executar como "Eu" → acesso "Qualquer pessoa" → copie a URL gerada (termina em <code>/exec</code>) e cole acima.<br>
+      O token deve ser idêntico ao valor de <code>CONFIG.API_TOKEN</code> no topo do <code>Code.gs</code> — protege contra chamadas indevidas ao seu script.<br>
+      Isso habilita a aba <strong>💊 Medicamentos</strong>: registrar aplicações e criar lembretes no seu Google Calendar automaticamente.
     </div>
   </div>
 
@@ -470,6 +551,10 @@ footer{max-width:1100px;margin:2rem auto 0;padding:0 1.25rem;text-align:center;f
     <svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.9 2.6L22.5 18.5l-2.6.9L19 22l-.9-2.6-2.6-.9 2.6-.9z"/></svg>
     IA
   </button>
+  <button class="nav-item" data-tab="meds">
+    <svg viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="9" rx="2"/><path d="M8 9V6a4 4 0 0 1 8 0v3"/><line x1="12" y1="12" x2="12" y2="15"/><line x1="10.5" y1="13.5" x2="13.5" y2="13.5"/></svg>
+    Remédios
+  </button>
   <button class="nav-item" data-tab="settings">
     <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
     Ajustes
@@ -503,6 +588,12 @@ window.onload = () => {
   } else {
     showTab('settings');
   }
+  // Medicamentos: restaura config salva e carrega a lista se já configurado
+  const medsUrl = localStorage.getItem('hm_meds_url');
+  const medsToken = localStorage.getItem('hm_meds_token');
+  if (medsUrl) document.getElementById('medsWebAppUrl').value = medsUrl;
+  if (medsToken) document.getElementById('medsApiToken').value = medsToken;
+  if (medsConfigured()) loadMedicamentos();
 };
 
 // ── TABS ──
@@ -1239,6 +1330,172 @@ function mkChart(id, type, labels, datasets, extraScales) {
 }
 function destroy(id) { if (S.charts[id]) { S.charts[id].destroy(); delete S.charts[id]; } }
 function setPill(id, text, cls) { const el = document.getElementById(id); el.className = 'pill ' + cls; el.textContent = text; }
+
+// ═══ MEDICAMENTOS ═══
+const MedsState = { list: [], pendingAction: null };
+
+function saveMedsConfig() {
+  const url = document.getElementById('medsWebAppUrl').value.trim();
+  const token = document.getElementById('medsApiToken').value.trim();
+  if (url) localStorage.setItem('hm_meds_url', url); else localStorage.removeItem('hm_meds_url');
+  if (token) localStorage.setItem('hm_meds_token', token); else localStorage.removeItem('hm_meds_token');
+  showAlert('Configuração de Medicamentos salva.', 'info');
+  loadMedicamentos();
+}
+
+function medsConfigured() {
+  return !!(localStorage.getItem('hm_meds_url') && localStorage.getItem('hm_meds_token'));
+}
+
+// Todas as chamadas ao Web App usam POST com corpo JSON (evita limite de tamanho de URL
+// e mantém o token fora da query string visível em logs).
+async function callMedsApi(action, extra) {
+  const url = localStorage.getItem('hm_meds_url');
+  const token = localStorage.getItem('hm_meds_token');
+  if (!url || !token) throw new Error('Configure a URL do Web App e o token em Ajustes.');
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' }, // evita preflight CORS; Apps Script lê postData.contents igual
+    body: JSON.stringify({ action, token, ...extra })
+  });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  const data = await resp.json();
+  if (!data.ok) throw new Error(data.erro || 'Erro desconhecido do Web App.');
+  return data;
+}
+
+async function loadMedicamentos() {
+  if (!medsConfigured()) {
+    document.getElementById('medsEmpty').style.display = 'block';
+    document.getElementById('medsContent').style.display = 'none';
+    return;
+  }
+  try {
+    const data = await callMedsApi('listar_medicamentos', {});
+    MedsState.list = data.medicamentos || [];
+    document.getElementById('medsEmpty').style.display = 'none';
+    document.getElementById('medsContent').style.display = 'block';
+    renderMedicamentos();
+  } catch (e) {
+    document.getElementById('medsEmpty').style.display = 'block';
+    document.getElementById('medsContent').style.display = 'none';
+    document.getElementById('medsEmpty').querySelector('p').innerHTML =
+      'Não foi possível carregar os medicamentos: ' + e.message + '<br>Confira a URL e o token em <strong>Ajustes</strong>.';
+  }
+}
+
+function medStatus(med) {
+  // sem frequência definida → é um "contínuo/diário", não entra na grade periódica
+  if (!med.frequencia_dias) return null;
+  if (!med.proxima_aplicacao) return { cls: 'none', label: 'Sem registro', diffDays: null };
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const prox = new Date(med.proxima_aplicacao + 'T00:00:00');
+  const diffDays = Math.round((prox - hoje) / 86400000);
+  if (diffDays < 0)  return { cls: 'late', label: `Atrasado ${Math.abs(diffDays)}d`, diffDays };
+  if (diffDays <= (window.__CONFIG_LEMBRETE_DIAS || 3)) return { cls: 'soon', label: diffDays===0 ? 'Hoje' : `Em ${diffDays}d`, diffDays };
+  return { cls: 'ok', label: `Em ${diffDays}d`, diffDays };
+}
+
+function renderMedicamentos() {
+  const periodicos = MedsState.list.filter(m => m.frequencia_dias);
+  const diarios    = MedsState.list.filter(m => !m.frequencia_dias);
+
+  document.getElementById('medsPeriodicMeta').textContent = periodicos.length + ' medicamento(s)';
+
+  const grid = document.getElementById('medsPeriodicGrid');
+  grid.innerHTML = '';
+  for (const med of periodicos) {
+    const st = medStatus(med);
+    const cardCls = st.cls === 'late' ? 'overdue' : (st.cls === 'soon' ? 'due-soon' : '');
+    const badgeCls = st.cls;
+    const div = document.createElement('div');
+    div.className = 'med-card ' + cardCls;
+    div.innerHTML = `
+      <div class="med-hdr">
+        <div><div class="med-name">${med.nome}</div><div class="med-dose">${med.dose||''} ${med.via?'· '+med.via:''} · a cada ${med.frequencia_dias}d</div></div>
+        <span class="med-badge ${badgeCls}">${st.label}</span>
+      </div>
+      <div class="med-dates">
+        <div class="med-date-item"><span class="med-date-l">Última</span><span class="med-date-v">${med.ultima_aplicacao ? fmtISOToBR(med.ultima_aplicacao) : '—'}</span></div>
+        <div class="med-date-item"><span class="med-date-l">Próxima</span><span class="med-date-v">${med.proxima_aplicacao ? fmtISOToBR(med.proxima_aplicacao) : '—'}</span></div>
+      </div>
+      <div class="med-actions">
+        <button class="btn btn-primary" style="font-size:.72rem;padding:.45rem .8rem" onclick="openRegisterModal('${escapeAttr(med.nome)}', ${med.frequencia_dias}, '${escapeAttr(med.dose||'')}', '${escapeAttr(med.via||'')}')">✓ Registrar aplicação hoje</button>
+        ${med.proxima_aplicacao ? `<button class="btn btn-ghost" style="font-size:.72rem;padding:.45rem .8rem" onclick="openCalendarModal('${escapeAttr(med.nome)}', '${escapeAttr(med.dose||'')}', '${escapeAttr(med.via||'')}', '${med.proxima_aplicacao}')">📅 Criar lembrete</button>` : ''}
+      </div>`;
+    grid.appendChild(div);
+  }
+
+  const dailyList = document.getElementById('medsDailyList');
+  dailyList.innerHTML = '';
+  for (const med of diarios) {
+    dailyList.insertAdjacentHTML('beforeend',
+      `<div class="med-daily-item"><span class="nm">${med.nome}<span class="ds">${med.dose||''} ${med.via?'· '+med.via:''}</span></span></div>`);
+  }
+}
+
+function escapeAttr(s) { return String(s).replace(/'/g, "\\'"); }
+function fmtISOToBR(iso) { const [y,m,d] = iso.split('-'); return `${d}/${m}/${y}`; }
+
+// ── Modal: registrar aplicação de hoje ──
+function openRegisterModal(nome, freqDias, dose, via) {
+  MedsState.pendingAction = { type: 'registrar', nome, freqDias, dose, via };
+  const hojeISO = new Date().toISOString().split('T')[0];
+  const proximaCalc = new Date(Date.now() + freqDias * 86400000).toISOString().split('T')[0];
+  document.getElementById('medModalTitle').textContent = 'Registrar aplicação — ' + nome;
+  document.getElementById('medModalBody').innerHTML =
+    `Confirma que a aplicação de <strong>${nome}</strong> foi feita hoje (${fmtISOToBR(hojeISO)})?<br><br>` +
+    `A próxima aplicação calculada será <strong>${fmtISOToBR(proximaCalc)}</strong> (a cada ${freqDias} dias).<br><br>` +
+    `Depois de confirmar, você poderá criar o lembrete no Google Calendar em um segundo passo.`;
+  document.getElementById('medModalConfirmBtn').textContent = 'Confirmar aplicação';
+  document.getElementById('medModalBackdrop').style.display = 'flex';
+}
+
+// ── Modal: criar lembrete no Calendar para uma próxima aplicação já calculada ──
+function openCalendarModal(nome, dose, via, proximaISO) {
+  MedsState.pendingAction = { type: 'calendar', nome, dose, via, proximaISO };
+  document.getElementById('medModalTitle').textContent = 'Criar lembrete no Calendar';
+  document.getElementById('medModalBody').innerHTML =
+    `Criar um evento no seu Google Calendar para <strong>${nome}</strong> em <strong>${fmtISOToBR(proximaISO)}</strong>, ` +
+    `com lembrete 3 dias antes?`;
+  document.getElementById('medModalConfirmBtn').textContent = 'Criar lembrete';
+  document.getElementById('medModalBackdrop').style.display = 'flex';
+}
+
+function closeMedModal() {
+  document.getElementById('medModalBackdrop').style.display = 'none';
+  MedsState.pendingAction = null;
+}
+
+async function confirmMedModalAction() {
+  const action = MedsState.pendingAction;
+  if (!action) return;
+  const btn = document.getElementById('medModalConfirmBtn');
+  btn.disabled = true; const originalText = btn.textContent; btn.textContent = 'Aguarde…';
+
+  try {
+    if (action.type === 'registrar') {
+      const result = await callMedsApi('registrar_aplicacao', { nome: action.nome });
+      closeMedModal();
+      showAlert(`✓ Aplicação de ${action.nome} registrada. Próxima: ${result.proxima_aplicacao ? fmtISOToBR(result.proxima_aplicacao) : '—'}.`, 'info');
+      await loadMedicamentos();
+      // Oferece imediatamente a criação do lembrete para a nova data calculada
+      if (result.proxima_aplicacao) {
+        setTimeout(() => openCalendarModal(action.nome, action.dose, action.via, result.proxima_aplicacao), 400);
+      }
+    } else if (action.type === 'calendar') {
+      const result = await callMedsApi('criar_lembrete_calendar', {
+        nome: action.nome, dose: action.dose, via: action.via, proxima_aplicacao: action.proximaISO
+      });
+      closeMedModal();
+      showAlert(`✓ Lembrete criado no Google Calendar para ${fmtISOToBR(result.data)}.`, 'info');
+    }
+  } catch (e) {
+    showAlert('Erro: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false; btn.textContent = originalText;
+  }
+}
 
 // ═══ ANÁLISE IA ═══
 function saveApiKey() {
