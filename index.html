@@ -851,6 +851,33 @@ function renderSleep() {
   }
 }
 
+// ── FC POR SESSÃO (aproximação — plano A) ──
+// Cruza a FC "solta" do relógio (pasta Frequência Cardíaca, já na base) com a
+// janela de horário de cada treino. É aproximado: a FC de fita/CSV é amostrada
+// esparsamente e pode não cobrir os picos reais do esforço (a série fina fica
+// nos .tcx, ainda não importados). Para reduzir buracos:
+//  · TOL_MS estende a janela alguns minutos antes/depois (relógio nem sempre
+//    inicia/encerra exatamente junto com o app de exercício);
+//  · se a janela não pegar nenhuma amostra, cai para a FC do mesmo dia acima de
+//    um piso (fallback grosseiro, melhor que exibir "—").
+// Retorna { amostras:[bpm...], aproximado:bool } — 'aproximado' vira true quando
+// o fallback de dia foi usado, para o dashboard poder sinalizar.
+const HR_SESSION_TOL_MS = 4 * 60 * 1000; // 4 min de folga em cada ponta
+
+function hrSamplesForSession(r, hrTsRecs, hrDayRecs) {
+  const start = parseDMYTime(`${r.data} ${r.hora||'00:00'}`);
+  const durSec = parseFloat(String(r.valor2||'').split('|')[0]) || 3600;
+  if (start) {
+    const wStart = start - HR_SESSION_TOL_MS;
+    const wEnd   = start + Math.max(durSec,300)*1000 + HR_SESSION_TOL_MS;
+    const inWin = hrTsRecs.filter(x => x.ts >= wStart && x.ts <= wEnd).map(x => x.v);
+    if (inWin.length) return { amostras: inWin, aproximado: false };
+  }
+  // fallback: FC do mesmo dia (impreciso, mas evita "—" quando há dado próximo)
+  const sameDay = (hrDayRecs[r.data] || []).filter(v => v > 90);
+  return { amostras: sameDay, aproximado: sameDay.length > 0 };
+}
+
 // ── ACTIVITY TYPE CLASSIFIER ──
 // Prioridade: 1) coluna "arquivo" (tipo real vindo do Samsung/Health Sync,
 // ex: RUNNING, CIRCUIT_TRAINING, TYPE_0, WALKING) — nunca deduzir pela presença de km.
@@ -869,7 +896,11 @@ function classifyActivity(tipoRaw) {
   if (!t || t === 'null' || t === 'desconhecido') return 'outros';
   if (t.includes('run') || t === '1001' || t.includes('corrid')) return 'corrida';
   if (t.includes('walk') || t.includes('caminhad')) return 'caminhada';
-  if (t.includes('circuit') || t.includes('crossfit') || t.includes('outro treino')
+  // FIX (22/07/2026): 'TRAINING' é o rótulo que o Health Sync passou a usar para
+  // sessões de força/circuito (antes era CIRCUIT_TRAINING) — sem este match, todo
+  // o CrossFit desde maio caía em "outros". Checado depois de run/walk, então
+  // não conflita com outras modalidades.
+  if (t.includes('circuit') || t.includes('crossfit') || t.includes('training') || t.includes('outro treino')
     || t.includes('treino circ') || t === 'other' || t === 'outro' || t === '0'
     || t === '10007' || t === '14001' || t === '11007' || t.startsWith('type_')
     || t === 'functional' || t.includes('indoor')) return 'crossfit';
@@ -1099,11 +1130,20 @@ function renderActCorrida(corridas, hrRecs) {
   document.getElementById('runPace').innerHTML = (avgPace ? fmtPace(avgPace) : '—') + '<span class="stat-u">min/km</span>';
   document.getElementById('runTime').textContent = fmtDuration(totalSecs);
 
-  // FC durante corridas (cruzamento por data/hora)
-  const runDates = new Set(corridas.map(r => r.data));
-  const runHRs = hrRecs.filter(r => runDates.has(r.data)).map(r => +r.valor).filter(v=>v>100);
+  // FC durante corridas — cruzamento pela JANELA de cada sessão (com tolerância
+  // e fallback ao dia). Aproximado: ver nota em hrSamplesForSession.
+  const hrTsRun = hrRecs.map(r => ({ ts: parseDMYTime(`${r.data} ${r.hora||'00:00'}`), v: +r.valor })).filter(x => x.ts && x.v > 30);
+  const hrDayRun = {};
+  hrRecs.forEach(r => { (hrDayRun[r.data] = hrDayRun[r.data] || []).push(+r.valor); });
+  let runHRs = [], runHRaprox = false;
+  for (const r of corridas) {
+    const { amostras, aproximado } = hrSamplesForSession(r, hrTsRun, hrDayRun);
+    if (amostras.length) { runHRs.push(...amostras); if (aproximado) runHRaprox = true; }
+  }
+  runHRs = runHRs.filter(v => v > 100); // corrida: descarta leituras de repouso residuais
   document.getElementById('runHR').innerHTML = (runHRs.length
-    ? Math.round(runHRs.reduce((a,b)=>a+b,0)/runHRs.length) : '—') + '<span class="stat-u">bpm</span>';
+    ? Math.round(runHRs.reduce((a,b)=>a+b,0)/runHRs.length) + (runHRaprox ? '<span class="stat-u">bpm ~</span>' : '<span class="stat-u">bpm</span>')
+    : '—<span class="stat-u">bpm</span>');
 
   // Distância por sessão
   destroy('chartRunKm');
@@ -1162,25 +1202,22 @@ function renderActCrossfit(cfs, hrRecs) {
   const wkVals = Object.values(byWeek);
   const avgPerWeek = wkVals.length ? (wkVals.reduce((a,b)=>a+b,0)/wkVals.length).toFixed(1) : '—';
 
-  // ── FC por sessão: usa a JANELA REAL do treino (timestamp início → início+duração) ──
-  // em vez de "qualquer FC>100 no mesmo dia", que é impreciso.
-  function sessionWindow(r) {
-    const dtStr = `${r.data} ${r.hora||'00:00'}`;
-    const start = parseDMYTime(dtStr);
-    const durSec = parseFloat(String(r.valor2||'').split('|')[0]) || 3600;
-    return start ? { start, end: start + Math.max(durSec,300)*1000 } : null;
-  }
+  // ── FC por sessão: cruzamento pela janela do treino com tolerância + fallback ──
+  // (helper compartilhada hrSamplesForSession — aproximação do plano A). A FC fina
+  // real da sessão está nos .tcx, ainda não importados; aqui usamos a FC solta.
   const hrTsRecs = hrRecs.map(r => ({ ts: parseDMYTime(`${r.data} ${r.hora||'00:00'}`), v: +r.valor })).filter(x => x.ts && x.v > 30);
+  const hrDayCf = {};
+  hrRecs.forEach(r => { (hrDayCf[r.data] = hrDayCf[r.data] || []).push(+r.valor); });
 
   const sessionAvgHR = []; // FC média de cada sessão individual (para o gráfico)
-  let allCfHRs = [];
+  let allCfHRs = [], cfHRaprox = false;
   for (const r of cfs) {
-    const w = sessionWindow(r);
-    if (!w) continue;
-    const hrsIn = hrTsRecs.filter(x => x.ts >= w.start && x.ts <= w.end).map(x => x.v);
-    if (hrsIn.length) {
-      sessionAvgHR.push({ data: r.data, hora: r.hora, avg: hrsIn.reduce((a,b)=>a+b,0)/hrsIn.length, max: Math.max(...hrsIn), ts: w.start });
-      allCfHRs.push(...hrsIn);
+    const start = parseDMYTime(`${r.data} ${r.hora||'00:00'}`);
+    const { amostras, aproximado } = hrSamplesForSession(r, hrTsRecs, hrDayCf);
+    if (amostras.length) {
+      sessionAvgHR.push({ data: r.data, hora: r.hora, avg: amostras.reduce((a,b)=>a+b,0)/amostras.length, max: Math.max(...amostras), ts: start || 0, aprox: aproximado });
+      allCfHRs.push(...amostras);
+      if (aproximado) cfHRaprox = true;
     }
   }
   const cfHRmax = allCfHRs.length ? Math.max(...allCfHRs) : 0;
@@ -1201,8 +1238,9 @@ function renderActCrossfit(cfs, hrRecs) {
 
   document.getElementById('cfCount').textContent = cfs.length;
   document.getElementById('cfPerWeek').textContent = avgPerWeek;
-  document.getElementById('cfHR').innerHTML = (cfHRavg||'—') + '<span class="stat-u">bpm</span>';
-  document.getElementById('cfHRmax').innerHTML = (cfHRmax||'—') + '<span class="stat-u">bpm</span>';
+  const cfHRunit = cfHRaprox ? '<span class="stat-u">bpm ~</span>' : '<span class="stat-u">bpm</span>';
+  document.getElementById('cfHR').innerHTML = (cfHRavg||'—') + (cfHRavg ? cfHRunit : '<span class="stat-u">bpm</span>');
+  document.getElementById('cfHRmax').innerHTML = (cfHRmax||'—') + (cfHRmax ? cfHRunit : '<span class="stat-u">bpm</span>');
   document.getElementById('cfDur').innerHTML = (avgDur?Math.round(avgDur/60):'—') + '<span class="stat-u">min</span>';
   document.getElementById('cfStreak').innerHTML = streak + '<span class="stat-u">semanas</span>';
 
