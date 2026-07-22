@@ -851,6 +851,14 @@ function renderSleep() {
   }
 }
 
+// ── MIN/MAX SEGUROS (sem spread) ──
+// Math.max(...arr) / Math.min(...arr) estouram a pilha ("Maximum call stack
+// size exceeded") quando arr tem dezenas de milhares de itens, pois cada
+// elemento vira um argumento de função. Com a base já em ~50k registros, os
+// arrays de FC cruzaram esse limite. reduce percorre sem spread.
+function arrMax(arr) { let m = -Infinity; for (let i=0;i<arr.length;i++) if (arr[i]>m) m=arr[i]; return m; }
+function arrMin(arr) { let m =  Infinity; for (let i=0;i<arr.length;i++) if (arr[i]<m) m=arr[i]; return m; }
+
 // ── FC POR SESSÃO (aproximação — plano A) ──
 // Cruza a FC "solta" do relógio (pasta Frequência Cardíaca, já na base) com a
 // janela de horário de cada treino. É aproximado: a FC de fita/CSV é amostrada
@@ -932,8 +940,8 @@ function populateActivityFilterOptions() {
   monthSel.innerHTML = monthNames.map((m,i) => `<option value="${i}">${m}</option>`).join('');
 
   const dayInput = document.getElementById('actFilterDay');
-  const maxD = new Date(Math.max(...dates));
-  const minD = new Date(Math.min(...dates));
+  const maxD = new Date(arrMax(dates));
+  const minD = new Date(arrMin(dates));
   dayInput.max = maxD.toISOString().split('T')[0];
   dayInput.min = minD.toISOString().split('T')[0];
   dayInput.value = maxD.toISOString().split('T')[0];
@@ -1050,11 +1058,11 @@ function renderActGeral(sm, steps, acts, corridas, cfs) {
     }
     if (repouso.length) {
       document.getElementById('acHRrest').innerHTML = Math.round(repouso.reduce((a,b)=>a+b,0)/repouso.length) + '<span class="stat-u">bpm</span>';
-      document.getElementById('acHRrestSub').textContent = `n=${repouso.length} · faixa ${Math.min(...repouso)}-${Math.max(...repouso)}`;
+      document.getElementById('acHRrestSub').textContent = `n=${repouso.length} · faixa ${arrMin(repouso)}-${arrMax(repouso)}`;
     } else { document.getElementById('acHRrest').innerHTML = '—'; document.getElementById('acHRrestSub').textContent = 'sem dados no período'; }
     if (treino.length) {
       document.getElementById('acHRtrain').innerHTML = Math.round(treino.reduce((a,b)=>a+b,0)/treino.length) + '<span class="stat-u">bpm</span>';
-      document.getElementById('acHRtrainSub').textContent = `n=${treino.length} · máx ${Math.max(...treino)}`;
+      document.getElementById('acHRtrainSub').textContent = `n=${treino.length} · máx ${arrMax(treino)}`;
     } else { document.getElementById('acHRtrain').innerHTML = '—'; document.getElementById('acHRtrainSub').textContent = 'sem dados no período'; }
   }
 
@@ -1138,7 +1146,7 @@ function renderActCorrida(corridas, hrRecs) {
   let runHRs = [], runHRaprox = false;
   for (const r of corridas) {
     const { amostras, aproximado } = hrSamplesForSession(r, hrTsRun, hrDayRun);
-    if (amostras.length) { runHRs.push(...amostras); if (aproximado) runHRaprox = true; }
+    if (amostras.length) { for (let i=0;i<amostras.length;i++) runHRs.push(amostras[i]); if (aproximado) runHRaprox = true; }
   }
   runHRs = runHRs.filter(v => v > 100); // corrida: descarta leituras de repouso residuais
   document.getElementById('runHR').innerHTML = (runHRs.length
@@ -1215,12 +1223,12 @@ function renderActCrossfit(cfs, hrRecs) {
     const start = parseDMYTime(`${r.data} ${r.hora||'00:00'}`);
     const { amostras, aproximado } = hrSamplesForSession(r, hrTsRecs, hrDayCf);
     if (amostras.length) {
-      sessionAvgHR.push({ data: r.data, hora: r.hora, avg: amostras.reduce((a,b)=>a+b,0)/amostras.length, max: Math.max(...amostras), ts: start || 0, aprox: aproximado });
-      allCfHRs.push(...amostras);
+      sessionAvgHR.push({ data: r.data, hora: r.hora, avg: amostras.reduce((a,b)=>a+b,0)/amostras.length, max: arrMax(amostras), ts: start || 0, aprox: aproximado });
+      for (let i=0;i<amostras.length;i++) allCfHRs.push(amostras[i]);
       if (aproximado) cfHRaprox = true;
     }
   }
-  const cfHRmax = allCfHRs.length ? Math.max(...allCfHRs) : 0;
+  const cfHRmax = allCfHRs.length ? arrMax(allCfHRs) : 0;
   const cfHRavg = allCfHRs.length ? Math.round(allCfHRs.reduce((a,b)=>a+b,0)/allCfHRs.length) : 0;
 
   // Streak atual
