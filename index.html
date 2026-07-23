@@ -153,6 +153,44 @@ button.card .cta{
 }
 button.card[aria-pressed="true"] .cta{color:var(--c)}
 
+/* diálogo de registro de aplicação */
+dialog{
+  border:none;border-radius:var(--radius);padding:0;max-width:340px;width:calc(100% - 32px);
+  box-shadow:0 12px 40px rgba(14,22,32,.22);color:var(--ink);
+}
+dialog::backdrop{background:rgba(14,22,32,.42)}
+dialog .dh{padding:16px 18px 0}
+dialog .dh h3{font-size:15px;font-weight:600}
+dialog .dh p{font-size:12.5px;color:var(--ink-3);margin-top:2px}
+dialog .db{padding:14px 18px}
+dialog label{
+  display:block;font-family:'IBM Plex Mono',monospace;font-size:10px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px;
+}
+dialog input[type=date]{
+  font:inherit;font-family:'IBM Plex Mono',monospace;font-size:14px;width:100%;
+  padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--card);
+  color:var(--ink);
+}
+dialog input[type=date]:focus-visible{outline:2px solid var(--ch-o2);outline-offset:1px}
+dialog .chk{display:flex;align-items:flex-start;gap:9px;margin-top:14px;cursor:pointer}
+dialog .chk input{margin-top:2px;width:16px;height:16px;accent-color:var(--ch-ativ);flex:none}
+dialog .chk span{font-size:12.5px;color:var(--ink-2);text-transform:none;letter-spacing:0;font-family:inherit}
+dialog .prev{
+  font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink-2);
+  background:#F2F5F8;border-radius:8px;padding:9px 11px;margin-top:12px;
+}
+dialog .prev b{color:var(--ch-ativ)}
+dialog .df{display:flex;gap:8px;justify-content:flex-end;padding:0 18px 16px}
+dialog button{
+  font:inherit;font-size:13px;padding:8px 14px;border-radius:9px;cursor:pointer;
+  border:1px solid var(--line);background:var(--card);color:var(--ink);
+}
+dialog button.pri{background:var(--ink);color:#fff;border-color:var(--ink)}
+dialog button:disabled{opacity:.5;cursor:default}
+dialog button:focus-visible{outline:2px solid var(--ch-o2);outline-offset:2px}
+dialog .msg{font-size:12.5px;padding:0 18px 12px;color:var(--ch-fc)}
+
 /* barras horizontais (sono) */
 .bars{padding:6px 16px 14px}
 .bar{display:grid;grid-template-columns:58px 1fr 54px;align-items:center;gap:10px;padding:5px 0}
@@ -350,6 +388,28 @@ button.act:focus-visible{outline:2px solid var(--ch-o2);outline-offset:2px}
 </section>
 
 </div>
+
+<!-- Diálogo de registro de aplicação: data retroativa + lembrete no Calendar -->
+<dialog id="dlg">
+  <div class="dh">
+    <h3 id="dlgNome">—</h3>
+    <p id="dlgDose"></p>
+  </div>
+  <div class="db">
+    <label for="dlgData">Data da aplicação</label>
+    <input type="date" id="dlgData">
+    <div class="prev" id="dlgPrev">próxima aplicação: —</div>
+    <label class="chk" for="dlgCal">
+      <input type="checkbox" id="dlgCal" checked>
+      <span>Criar lembrete no Google Calendar, com aviso 3 dias antes</span>
+    </label>
+  </div>
+  <div class="msg" id="dlgMsg" hidden></div>
+  <div class="df">
+    <button type="button" id="dlgCancelar">Cancelar</button>
+    <button type="button" class="pri" id="dlgConfirmar">Registrar</button>
+  </div>
+</dialog>
 
 <script>
 /* ══════════════════════════════════════════════════════════════
@@ -771,10 +831,18 @@ function fmtPace(minKm) {
   return m + ':' + String(s).padStart(2, '0') + ' /km';
 }
 
-/* ── medicamentos (via Web App) ── */
+/* ══════════════════════════════════════════════════════════════
+   MEDICAMENTOS
+   Periódicos: registram a aplicação (com data retroativa, se preciso),
+   recalculam a próxima dose e podem lançar o lembrete no Calendar.
+   Contínuos: só constam na lista, sem lembrete.
+   ══════════════════════════════════════════════════════════════ */
 let medsCarregados = false;
-async function carregarMeds() {
-  if (medsCarregados) return;
+let medsCache = [];
+let medAtual = null;
+
+async function carregarMeds(forcar) {
+  if (medsCarregados && !forcar) return;
   const box = document.getElementById('medBox'), cont = document.getElementById('contBox');
   if (!WEBAPP_URL) {
     box.innerHTML = '<div class="empty"><b>Web App não configurado</b>Cole a URL da implantação em WEBAPP_URL, no topo do script.</div>';
@@ -786,10 +854,14 @@ async function carregarMeds() {
     const r = await resp.json();
     if (!r.ok) throw new Error(r.erro || 'erro ao listar');
     medsCarregados = true;
-    const per = r.medicamentos.filter(function (m) { return m.tipo === 'periodico' && m.ativo; });
-    const con = r.medicamentos.filter(function (m) { return m.tipo !== 'periodico' && m.ativo; });
+    medsCache = r.medicamentos;
+
+    const per = medsCache.filter(function (m) { return m.tipo === 'periodico' && m.ativo; });
+    const con = medsCache.filter(function (m) { return m.tipo !== 'periodico' && m.ativo; });
     document.getElementById('medN').textContent = per.length + ' ativos';
+
     box.innerHTML = per.map(function (m) {
+      const i = medsCache.indexOf(m);
       let txt = 'sem registro', cls = '';
       if (m.proxima_aplicacao) {
         const dias = Math.ceil((new Date(m.proxima_aplicacao + 'T12:00:00') - Date.now()) / 86400000);
@@ -797,38 +869,125 @@ async function carregarMeds() {
         else if (dias === 0) { txt = 'hoje'; cls = 'soon'; }
         else { txt = 'em ' + dias + 'd'; cls = dias <= 3 ? 'soon' : ''; }
       }
-      const nomeEsc = m.nome.replace(/'/g, "\\'");
+      const ult = m.ultima_aplicacao ? ('última ' + brDate(m.ultima_aplicacao)) : 'nunca registrado';
+      const freq = m.frequencia_dias ? (' · a cada ' + m.frequencia_dias + 'd') : '';
       return '<div class="med">'
-        + '<div><div class="nm">' + m.nome + '</div><div class="ds">'
-        + [m.dose, m.via].filter(Boolean).join(' · ') + '</div></div>'
+        + '<div><div class="nm">' + esc(m.nome) + '</div>'
+        + '<div class="ds">' + esc([m.dose, m.via].filter(Boolean).join(' · ')) + freq + '</div>'
+        + '<div class="ds">' + ult + '</div></div>'
         + '<div class="rt"><div class="due ' + cls + '">' + txt + '</div>'
-        + '<button class="act" onclick="aplicar(\'' + nomeEsc + '\')">Registrar</button></div>'
+        + '<button class="act" data-med="' + i + '">Registrar</button></div>'
         + '</div>';
     }).join('') || '<div class="empty">Nenhum medicamento periódico ativo.</div>';
+
     cont.innerHTML = con.map(function (m) {
-      return '<div class="med"><div><div class="nm">' + m.nome + '</div><div class="ds">'
-        + [m.dose, m.via].filter(Boolean).join(' · ') + '</div></div></div>';
+      return '<div class="med"><div><div class="nm">' + esc(m.nome) + '</div><div class="ds">'
+        + esc([m.dose, m.via].filter(Boolean).join(' · ')) + '</div></div></div>';
     }).join('') || '<div class="empty">Nenhum medicamento contínuo cadastrado.</div>';
   } catch (e) {
-    box.innerHTML = '<div class="empty"><b>Não foi possível carregar</b>' + e.message + '</div>';
+    box.innerHTML = '<div class="empty"><b>Não foi possível carregar</b>' + esc(e.message) + '</div>';
   }
 }
 
-async function aplicar(nome) {
-  if (!confirm('Registrar aplicação de ' + nome + ' hoje?')) return;
+function esc(s) {
+  return String(s === undefined || s === null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function brDate(iso) {
+  if (!iso) return '—';
+  const p = String(iso).split('-');
+  return p.length === 3 ? (p[2] + '/' + p[1] + '/' + p[0]) : iso;
+}
+function isoHoje() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+
+/* delegação: evita escapar aspas de nomes dentro de onclick */
+document.getElementById('medBox').addEventListener('click', function (ev) {
+  const b = ev.target.closest('button[data-med]');
+  if (b) abrirDialogo(medsCache[+b.dataset.med]);
+});
+
+const dlg = document.getElementById('dlg');
+
+function abrirDialogo(med) {
+  if (!med) return;
+  medAtual = med;
+  document.getElementById('dlgNome').textContent = med.nome;
+  document.getElementById('dlgDose').textContent =
+    [med.dose, med.via].filter(Boolean).join(' · ') +
+    (med.frequencia_dias ? ' · a cada ' + med.frequencia_dias + ' dias' : '');
+  const inp = document.getElementById('dlgData');
+  inp.value = isoHoje();
+  inp.max = isoHoje();               // não faz sentido registrar aplicação futura
+  document.getElementById('dlgCal').checked = true;
+  document.getElementById('dlgMsg').hidden = true;
+  document.getElementById('dlgConfirmar').disabled = false;
+  document.getElementById('dlgConfirmar').textContent = 'Registrar';
+  previsao();
+  dlg.showModal();
+}
+
+/* mostra a próxima dose enquanto o usuário mexe na data */
+function previsao() {
+  const el = document.getElementById('dlgPrev');
+  const freq = medAtual && medAtual.frequencia_dias;
+  const v = document.getElementById('dlgData').value;
+  if (!freq || !v) { el.textContent = 'próxima aplicação: —'; return; }
+  const prox = new Date(v + 'T12:00:00');
+  prox.setDate(prox.getDate() + Number(freq));
+  el.innerHTML = 'próxima aplicação: <b>' + prox.toLocaleDateString('pt-BR') + '</b>';
+}
+document.getElementById('dlgData').addEventListener('change', previsao);
+document.getElementById('dlgCancelar').addEventListener('click', function () { dlg.close(); });
+
+document.getElementById('dlgConfirmar').addEventListener('click', async function () {
+  const btn = this, msg = document.getElementById('dlgMsg');
+  const data = document.getElementById('dlgData').value;
+  if (!data) { erroDlg('Escolha a data da aplicação.'); return; }
+  btn.disabled = true; btn.textContent = 'registrando…'; msg.hidden = true;
   try {
-    const resp = await fetch(WEBAPP_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ action: 'registrar_aplicacao', token: API_TOKEN, nome: nome })
-    });
-    const r = await resp.json();
-    if (!r.ok) throw new Error(r.erro || 'erro ao registrar');
-    medsCarregados = false;
-    carregarMeds();
+    const r = await postWeb({ action: 'registrar_aplicacao', nome: medAtual.nome, data: data });
+    if (!r.ok) throw new Error(r.erro || 'não foi possível registrar');
+
+    /* lembrete no Calendar, se marcado e houver próxima data calculada */
+    if (document.getElementById('dlgCal').checked && r.proxima_aplicacao) {
+      btn.textContent = 'criando lembrete…';
+      const c = await postWeb({
+        action: 'criar_lembrete_calendar', nome: medAtual.nome,
+        dose: medAtual.dose || '', via: medAtual.via || '',
+        proxima_aplicacao: r.proxima_aplicacao
+      });
+      if (!c.ok) {
+        /* o registro deu certo; só o lembrete falhou — não desfaz o principal */
+        erroDlg('Aplicação registrada, mas o lembrete falhou: ' + (c.erro || 'erro no Calendar'));
+        btn.textContent = 'Fechar'; btn.disabled = false;
+        btn.onclick = function () { dlg.close(); carregarMeds(true); };
+        return;
+      }
+    }
+    dlg.close();
+    carregarMeds(true);
   } catch (e) {
-    alert('Não foi possível registrar: ' + e.message);
+    erroDlg(e.message);
+    btn.disabled = false; btn.textContent = 'Registrar';
   }
+});
+
+function erroDlg(t) {
+  const m = document.getElementById('dlgMsg');
+  m.textContent = t; m.hidden = false;
+}
+
+async function postWeb(payload) {
+  payload.token = API_TOKEN;
+  const resp = await fetch(WEBAPP_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },  // evita preflight CORS
+    body: JSON.stringify(payload)
+  });
+  return await resp.json();
 }
 
 carregar();
