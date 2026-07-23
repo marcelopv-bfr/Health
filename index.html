@@ -386,17 +386,31 @@ async function carregar() {
     if (!m) throw new Error('resposta inesperada da planilha');
     const json = JSON.parse(m[1]);
     for (const row of json.table.rows) {
-      const k = row.c[0] && row.c[0].v;
-      const v = row.c[1] && row.c[1].v;
+      const c = row.c || [];
+      /* Quando a coluna é interpretada como numérica, células de texto voltam
+         com v=null — mas o valor original continua disponível em .f (formatado).
+         Ler os dois evita perder gerado_em e os blocos JSON. */
+      const cel = function (i) {
+        if (!c[i]) return '';
+        if (c[i].v !== null && c[i].v !== undefined) return c[i].v;
+        if (c[i].f !== null && c[i].f !== undefined) return c[i].f;
+        return '';
+      };
+      const k = cel(0), v = cel(1);
       if (k && k !== 'chave') R[String(k)] = v;
+    }
+    /* Diagnóstico honesto: se veio estrutura mas nenhuma chave, o problema não
+       é conexão — é a aba lida estar vazia ou com outro nome. */
+    if (!Object.keys(R).length) {
+      throw new Error('a aba Resumo respondeu, mas sem nenhuma linha de dados');
     }
     pintar();
   } catch (e) {
     const p = document.getElementById('pillSync');
-    p.textContent = 'sem conexão';
+    p.textContent = 'erro ao carregar';
     p.className = 'pill err';
     document.querySelectorAll('.empty').forEach(function (el) {
-      el.innerHTML = '<b>Não foi possível carregar</b>Confira se a planilha está compartilhada como “qualquer pessoa com o link”.';
+      el.innerHTML = '<b>Não foi possível carregar</b>' + e.message;
     });
   }
 }
