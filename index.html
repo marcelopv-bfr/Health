@@ -1,1760 +1,648 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>HealthMerge</title>
-
-<!-- ── PWA / instalar como app ── -->
-<meta name="theme-color" content="#0E9384">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="HealthMerge">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230E9384'/%3E%3Cpath d='M15 55 h18 l6-16 8 30 8-22 5 8 h25' stroke='white' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-<link id="manifestLink" rel="manifest" href="">
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<meta name="theme-color" content="#0E1620">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap');
-
+/* ══════════════════════════════════════════════════════════════
+   HealthMerge v3 — painel de instrumentação
+   Números em mono (telemetria), texto em sans. Cada métrica tem
+   um canal de cor fixo, como num monitor multiparamétrico.
+   ══════════════════════════════════════════════════════════════ */
 :root{
-  --bg:#F7F9FB; --card:#FFFFFF; --border:#E7ECF2; --border-strong:#D5DEE7;
-  --ink:#16232E; --muted:#64748B; --faint:#94A3B8;
-  --teal:#0E9384; --teal-soft:#E6F6F3; --teal-deep:#0A6B60;
-  --blue:#175CD3; --blue-soft:#EFF4FF;
-  --amber:#B54708; --amber-soft:#FEF4E6;
-  --red:#D92D20; --red-soft:#FEEFEE;
-  --green:#067647; --green-soft:#EAF7F0;
-  --mono:'IBM Plex Mono',monospace; --sans:'Inter',sans-serif;
-  --shadow:0 1px 3px rgba(22,35,46,.06),0 4px 16px rgba(22,35,46,.05);
-  --radius:16px;
+  --ink:#0E1620;          /* tinta principal   */
+  --ink-2:#4A5867;        /* texto secundário  */
+  --ink-3:#8695A4;        /* rótulos           */
+  --paper:#F2F5F8;        /* fundo frio        */
+  --card:#FFFFFF;
+  --line:#DFE6ED;
+  /* canais — um por métrica, como num monitor */
+  --ch-fc:#D6455D;        /* frequência cardíaca */
+  --ch-pa:#C2761B;        /* pressão             */
+  --ch-o2:#1F7FB8;        /* saturação           */
+  --ch-sono:#5B57B5;      /* sono                */
+  --ch-ativ:#0E8A6B;      /* atividade           */
+  --radius:14px;
 }
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html{-webkit-text-size-adjust:100%;}
-body{background:var(--bg);color:var(--ink);font-family:var(--sans);min-height:100vh;padding-bottom:calc(72px + env(safe-area-inset-bottom));}
-@media(min-width:820px){body{padding-bottom:2rem;}}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:'IBM Plex Sans',system-ui,sans-serif;
+  background:var(--paper); color:var(--ink);
+  line-height:1.45; padding-bottom:48px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:940px;margin:0 auto;padding:0 16px}
 
-/* ── HEADER ── */
-header{background:var(--card);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50;padding-top:env(safe-area-inset-top);}
-.hdr{max-width:1100px;margin:0 auto;padding:.9rem 1.25rem .7rem;display:flex;align-items:center;justify-content:space-between;gap:.75rem;}
-.brand{display:flex;align-items:center;gap:.6rem;}
-.brand-icon{width:34px;height:34px;border-radius:9px;background:var(--teal);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.brand-icon svg{width:22px;height:22px;}
-.brand-txt .name{font-weight:700;font-size:1rem;letter-spacing:-.02em;}
-.brand-txt .sub{font-size:.66rem;color:var(--muted);font-family:var(--mono);}
-.hdr-badges{display:flex;gap:.4rem;align-items:center;}
-.pill{font-family:var(--mono);font-size:.64rem;padding:.28rem .6rem;border-radius:999px;border:1px solid var(--border);color:var(--muted);white-space:nowrap;background:var(--bg);}
-.pill.ok{background:var(--teal-soft);border-color:transparent;color:var(--teal-deep);}
-.pill.warn{background:var(--amber-soft);border-color:transparent;color:var(--amber);}
-.pill.err{background:var(--red-soft);border-color:transparent;color:var(--red);}
-/* ECG line */
-.ecg{height:22px;overflow:hidden;opacity:.5;}
-.ecg svg{width:200%;height:22px;animation:ecg 7s linear infinite;display:block;}
-@keyframes ecg{from{transform:translateX(0)}to{transform:translateX(-50%)}}
-@media(prefers-reduced-motion:reduce){.ecg svg{animation:none;}}
+/* ── cabeçalho + faixa de ECG que carrega dado real ── */
+header{padding:20px 0 0}
+.brand{display:flex;align-items:center;gap:12px}
+.mark{
+  width:38px;height:38px;border-radius:10px;background:var(--ink);
+  display:grid;place-items:center;flex:none;
+}
+.mark svg{width:22px;height:22px}
+.brand h1{font-size:19px;font-weight:600;letter-spacing:-.02em}
+.brand .who{
+  font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);
+}
+.status{margin-left:auto;display:flex;gap:6px;align-items:center}
+.pill{
+  font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+  padding:4px 9px;border-radius:99px;border:1px solid var(--line);
+  color:var(--ink-2);background:var(--card);white-space:nowrap;
+}
+.pill.on{color:var(--ch-ativ);border-color:#B7E0D3;background:#F0FAF6}
+.pill.err{color:var(--ch-fc);border-color:#F2C4CD;background:#FDF2F4}
 
-main{max-width:1100px;margin:0 auto;padding:1.25rem;}
+/* faixa ECG: 14 dias de minutos ativos desenhados como traçado */
+.ecg{margin:16px 0 4px;height:56px;position:relative}
+.ecg svg{width:100%;height:100%;display:block;overflow:visible}
+.ecg .cap{
+  position:absolute;left:0;bottom:-14px;
+  font-family:'IBM Plex Mono',monospace;font-size:10px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
+}
 
-/* ── ACTIVITY FILTER BAR ── */
-.act-filter{display:flex;gap:.5rem;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;}
-.act-filter-sel{font-family:var(--sans);font-size:.78rem;padding:.45rem .7rem;border-radius:8px;border:1px solid var(--border-strong);background:var(--card);color:var(--ink);}
-.act-filter-sel:focus{outline:2px solid var(--teal);outline-offset:-1px;}
-.act-filter-count{font-family:var(--mono);font-size:.7rem;color:var(--muted);margin-left:.25rem;}
+/* ── navegação ── */
+nav{display:flex;gap:4px;overflow-x:auto;padding:22px 0 14px;scrollbar-width:none}
+nav::-webkit-scrollbar{display:none}
+nav button{
+  font:inherit;font-size:13.5px;font-weight:500;cursor:pointer;
+  padding:8px 14px;border-radius:99px;border:1px solid transparent;
+  background:transparent;color:var(--ink-2);white-space:nowrap;
+}
+nav button:hover{background:#E7EDF3}
+nav button[aria-selected="true"]{background:var(--ink);color:#fff}
+nav button:focus-visible{outline:2px solid var(--ch-o2);outline-offset:2px}
 
-/* ── ACTIVITY SUB-TABS ── */
-.act-subtabs{display:flex;gap:.4rem;overflow-x:auto;margin-bottom:1.25rem;-webkit-overflow-scrolling:touch;padding-bottom:.1rem;}
-.act-tab{font-size:.78rem;font-weight:500;padding:.5rem 1rem;border-radius:10px;cursor:pointer;color:var(--muted);background:var(--card);border:1px solid var(--border);white-space:nowrap;transition:all .15s;}
-.act-tab.active{background:var(--ink);color:#fff;border-color:var(--ink);}
-.act-panel{display:none;}
-.act-panel.active{display:block;animation:fadeIn .2s ease;}
-.c-muted{color:var(--muted);}
+/* ── cartões ── */
+.grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(168px,1fr))}
+.card{
+  background:var(--card);border:1px solid var(--line);
+  border-radius:var(--radius);padding:16px 16px 14px;position:relative;
+}
+.card .lab{
+  font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3);
+  display:flex;align-items:center;gap:6px;
+}
+.card .lab::before{content:'';width:6px;height:6px;border-radius:2px;background:var(--c,var(--ink-3))}
+.val{
+  font-family:'IBM Plex Mono',monospace;font-weight:600;
+  font-size:31px;letter-spacing:-.03em;margin-top:9px;line-height:1;
+  color:var(--c,var(--ink));
+}
+.val .u{font-size:13px;font-weight:400;color:var(--ink-3);margin-left:3px;letter-spacing:0}
+.sub{font-size:12px;color:var(--ink-2);margin-top:7px}
 
-/* ── DESKTOP TABS ── */
-.tabs-top{display:none;gap:.25rem;margin-bottom:1.5rem;background:var(--card);border:1px solid var(--border);border-radius:999px;padding:.3rem;width:fit-content;}
-@media(min-width:820px){.tabs-top{display:flex;}}
-.tab-t{font-size:.8rem;font-weight:500;padding:.5rem 1.1rem;border-radius:999px;cursor:pointer;color:var(--muted);background:none;border:none;transition:all .15s;}
-.tab-t.active{background:var(--teal);color:#fff;}
+.note{
+  font-size:12.5px;color:var(--ink-2);background:#FFF9EC;
+  border:1px solid #F0DFB8;border-radius:10px;padding:11px 13px;margin-top:14px;
+}
+.note b{color:var(--ink)}
 
-/* ── BOTTOM NAV (mobile) ── */
-.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);display:flex;z-index:60;padding-bottom:env(safe-area-inset-bottom);}
-@media(min-width:820px){.bottom-nav{display:none;}}
-.nav-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;padding:.55rem 0 .5rem;background:none;border:none;cursor:pointer;color:var(--faint);font-size:.6rem;font-weight:500;font-family:var(--sans);}
-.nav-item svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
-.nav-item.active{color:var(--teal);}
+/* ── tabelas ── */
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-top:12px}
+.panel h2{
+  font-size:13px;font-weight:600;padding:14px 16px;border-bottom:1px solid var(--line);
+  display:flex;align-items:center;gap:10px;
+}
+.panel h2 .n{
+  font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;
+  color:var(--ink-3);margin-left:auto;
+}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{
+  font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:500;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
+  text-align:left;padding:9px 16px;border-bottom:1px solid var(--line);
+}
+td{padding:11px 16px;border-bottom:1px solid #EEF2F6}
+tr:last-child td{border-bottom:none}
+td.num{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+.tag{
+  font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;
+  text-transform:uppercase;padding:3px 7px;border-radius:5px;
+  background:#EEF2F6;color:var(--ink-2);
+}
+.tag.corrida{background:#FDEFF2;color:var(--ch-fc)}
+.tag.crossfit{background:#EDF7F3;color:var(--ch-ativ)}
+.tag.caminhada{background:#EEF4FA;color:var(--ch-o2)}
 
-.tab-panel{display:none;}
-.tab-panel.active{display:block;animation:fadeIn .25s ease;}
-@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-@media(prefers-reduced-motion:reduce){.tab-panel.active{animation:none;}}
+/* barras horizontais (sono) */
+.bars{padding:6px 16px 14px}
+.bar{display:grid;grid-template-columns:58px 1fr 54px;align-items:center;gap:10px;padding:5px 0}
+.bar .d{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-3)}
+.bar .t{height:9px;border-radius:3px;background:#EDF1F5;overflow:hidden}
+.bar .t i{display:block;height:100%;border-radius:3px;background:var(--c,var(--ink-3))}
+.bar .v{font-family:'IBM Plex Mono',monospace;font-size:12px;text-align:right;font-variant-numeric:tabular-nums}
 
-/* ── SYNC STRIP ── */
-.sync-strip{display:flex;gap:1rem;overflow-x:auto;padding:.85rem 1rem;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:1.25rem;box-shadow:var(--shadow);align-items:center;-webkit-overflow-scrolling:touch;}
-.sync-i{display:flex;flex-direction:column;gap:1px;min-width:max-content;}
-.sync-l{font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:600;}
-.sync-v{font-family:var(--mono);font-size:.76rem;color:var(--ink);}
-.btn{font-family:var(--sans);font-weight:600;font-size:.78rem;padding:.55rem 1.1rem;border-radius:10px;border:1px solid transparent;cursor:pointer;transition:all .15s;white-space:nowrap;}
-.btn-primary{background:var(--teal);color:#fff;}
-.btn-primary:active{background:var(--teal-deep);}
-.btn-ghost{background:var(--teal-soft);color:var(--teal-deep);}
-.btn-muted{background:var(--bg);color:var(--muted);border-color:var(--border);}
+.empty{padding:26px 16px;text-align:center;color:var(--ink-2);font-size:13px}
+.empty b{display:block;color:var(--ink);margin-bottom:4px;font-size:14px}
 
-/* ── STAT CARDS ── */
-.stats{display:grid;grid-template-columns:repeat(2,1fr);gap:.75rem;margin-bottom:1.25rem;}
-@media(min-width:640px){.stats{grid-template-columns:repeat(3,1fr);}}
-@media(min-width:1000px){.stats{grid-template-columns:repeat(5,1fr);}}
-.stat{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:.95rem 1rem;box-shadow:var(--shadow);}
-.stat-l{font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:600;margin-bottom:.35rem;}
-.stat-v{font-family:var(--mono);font-size:1.55rem;font-weight:600;letter-spacing:-.02em;line-height:1;}
-.stat-u{font-size:.68rem;color:var(--muted);margin-left:.15rem;font-weight:400;}
-.stat-s{font-size:.66rem;color:var(--muted);margin-top:.35rem;}
-.c-teal{color:var(--teal-deep);}.c-blue{color:var(--blue);}.c-amber{color:var(--amber);}.c-red{color:var(--red);}.c-green{color:var(--green);}
+/* medicamentos */
+.med{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid #EEF2F6}
+.med:last-child{border-bottom:none}
+.med .nm{font-weight:500;font-size:13.5px}
+.med .ds{font-size:12px;color:var(--ink-3)}
+.med .rt{margin-left:auto;text-align:right}
+.med .due{font-family:'IBM Plex Mono',monospace;font-size:12px}
+.med .due.soon{color:var(--ch-pa)}
+.med .due.late{color:var(--ch-fc);font-weight:600}
+button.act{
+  font:inherit;font-size:12px;padding:6px 11px;border-radius:8px;cursor:pointer;
+  border:1px solid var(--line);background:var(--card);color:var(--ink);margin-top:4px;
+}
+button.act:hover{background:#F2F5F8}
+button.act:focus-visible{outline:2px solid var(--ch-o2);outline-offset:2px}
 
-/* ── CHART CARDS ── */
-.grid{display:grid;grid-template-columns:1fr;gap:1rem;margin-bottom:1.25rem;}
-@media(min-width:820px){.grid{grid-template-columns:1fr 1fr;}}
-.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.15rem;box-shadow:var(--shadow);}
-.card.wide{grid-column:1/-1;}
-.card-hdr{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.9rem;gap:.5rem;flex-wrap:wrap;}
-.card-t{font-size:.82rem;font-weight:600;}
-.card-m{font-family:var(--mono);font-size:.62rem;color:var(--faint);}
-
-/* ── BP ── */
-.bp-grid{display:grid;grid-template-columns:1fr;gap:.75rem;margin-bottom:1rem;}
-@media(min-width:640px){.bp-grid{grid-template-columns:repeat(3,1fr);}}
-.bp-reading{display:flex;align-items:baseline;gap:.25rem;margin:.2rem 0;}
-.bp-sys{font-family:var(--mono);font-size:2rem;font-weight:600;letter-spacing:-.02em;}
-.bp-sep{color:var(--faint);font-size:1.2rem;}
-.bp-dia{font-family:var(--mono);font-size:1.35rem;font-weight:500;color:var(--muted);}
-.tag{display:inline-block;font-size:.64rem;font-weight:600;padding:.22rem .6rem;border-radius:999px;}
-.tag-normal{background:var(--green-soft);color:var(--green);}
-.tag-elevated{background:var(--amber-soft);color:var(--amber);}
-.tag-ht1{background:#FDEAD7;color:#B93815;}
-.tag-ht2{background:var(--red-soft);color:var(--red);}
-
-/* ── TABLE ── */
-.tbl-wrap{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.15rem;box-shadow:var(--shadow);overflow-x:auto;margin-bottom:1.25rem;}
-table{width:100%;border-collapse:collapse;}
-th{font-size:.6rem;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:600;text-align:left;padding:.45rem .6rem;border-bottom:1px solid var(--border);}
-td{padding:.55rem .6rem;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:.72rem;}
-tr:last-child td{border-bottom:none;}
-.src-samsung{color:var(--blue);}.src-huawei{color:var(--red);}.src-healthsync{color:var(--teal-deep);}
-
-/* ── MEDICAMENTOS ── */
-.med-grid{display:grid;grid-template-columns:1fr;gap:.85rem;margin-bottom:1.25rem;}
-@media(min-width:700px){.med-grid{grid-template-columns:1fr 1fr;}}
-.med-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.1rem 1.2rem;box-shadow:var(--shadow);}
-.med-card.due-soon{border-color:#F79009;box-shadow:0 0 0 1px #F7900930, var(--shadow);}
-.med-card.overdue{border-color:var(--red);box-shadow:0 0 0 1px #D92D2030, var(--shadow);}
-.med-hdr{display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;margin-bottom:.6rem;}
-.med-name{font-weight:600;font-size:.9rem;}
-.med-dose{font-size:.72rem;color:var(--muted);margin-top:1px;}
-.med-badge{font-size:.62rem;font-weight:600;padding:.2rem .55rem;border-radius:999px;white-space:nowrap;}
-.med-badge.ok{background:var(--green-soft);color:var(--green);}
-.med-badge.soon{background:var(--amber-soft);color:var(--amber);}
-.med-badge.late{background:var(--red-soft);color:var(--red);}
-.med-badge.none{background:var(--bg);color:var(--faint);border:1px solid var(--border);}
-.med-dates{display:flex;gap:1.5rem;margin:.6rem 0;}
-.med-date-item{display:flex;flex-direction:column;gap:1px;}
-.med-date-l{font-size:.6rem;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);font-weight:600;}
-.med-date-v{font-family:var(--mono);font-size:.82rem;}
-.med-actions{display:flex;gap:.5rem;margin-top:.5rem;flex-wrap:wrap;}
-.med-daily-list{display:flex;flex-direction:column;gap:.5rem;}
-.med-daily-item{display:flex;justify-content:space-between;align-items:center;padding:.6rem .85rem;background:var(--card);border:1px solid var(--border);border-radius:10px;font-size:.8rem;}
-.med-daily-item .nm{font-weight:500;}
-.med-daily-item .ds{color:var(--muted);font-size:.72rem;margin-left:.4rem;}
-
-/* modal simples de confirmação */
-.modal-backdrop{position:fixed;inset:0;background:rgba(22,35,46,.45);display:flex;align-items:center;justify-content:center;z-index:200;padding:1.25rem;}
-.modal-box{background:var(--card);border-radius:var(--radius);padding:1.4rem;max-width:380px;width:100%;box-shadow:0 8px 32px rgba(22,35,46,.25);}
-.modal-title{font-size:.95rem;font-weight:600;margin-bottom:.5rem;}
-.modal-body{font-size:.82rem;color:var(--muted);line-height:1.6;margin-bottom:1.1rem;}
-.modal-body strong{color:var(--ink);}
-.modal-actions{display:flex;gap:.6rem;justify-content:flex-end;}
-
-/* ── CONFIG / SETUP ── */
-.cfg{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;box-shadow:var(--shadow);margin-bottom:1.25rem;}
-.cfg-t{font-size:.85rem;font-weight:600;margin-bottom:.65rem;}
-.cfg-row{display:flex;gap:.5rem;flex-wrap:wrap;}
-.inp{flex:1;min-width:220px;background:var(--bg);border:1px solid var(--border-strong);border-radius:10px;padding:.6rem .85rem;font-family:var(--mono);font-size:.75rem;color:var(--ink);}
-.inp:focus{outline:2px solid var(--teal);outline-offset:-1px;border-color:transparent;}
-.hint{font-size:.7rem;color:var(--muted);margin-top:.55rem;line-height:1.65;}
-.hint code{font-family:var(--mono);font-size:.66rem;background:var(--bg);border:1px solid var(--border);padding:.08rem .35rem;border-radius:5px;}
-
-.alertbox{border-radius:12px;padding:.75rem 1rem;font-size:.76rem;margin-bottom:1rem;line-height:1.55;}
-.alertbox.warn{background:var(--amber-soft);color:var(--amber);}
-.alertbox.info{background:var(--teal-soft);color:var(--teal-deep);}
-.alertbox.err{background:var(--red-soft);color:var(--red);}
-
-.empty{text-align:center;padding:3rem 1.5rem;color:var(--faint);}
-.empty .ic{font-size:2.2rem;margin-bottom:.6rem;opacity:.55;}
-.empty p{font-size:.8rem;line-height:1.7;}
-
-/* setup guide */
-.step{display:flex;gap:.85rem;margin-bottom:1.1rem;align-items:flex-start;}
-.step-n{font-family:var(--mono);font-size:.68rem;font-weight:600;min-width:1.55rem;height:1.55rem;border-radius:50%;background:var(--teal-soft);color:var(--teal-deep);display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.05rem;}
-.step-b{font-size:.78rem;line-height:1.7;color:var(--ink);}
-.step-b strong{color:var(--teal-deep);}
-.step-b code{font-family:var(--mono);font-size:.68rem;background:var(--bg);border:1px solid var(--border);padding:.08rem .35rem;border-radius:5px;}
-
-footer{max-width:1100px;margin:2rem auto 0;padding:0 1.25rem;text-align:center;font-size:.64rem;color:var(--faint);}
-::-webkit-scrollbar{width:5px;height:5px;}
-::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:3px;}
+[hidden]{display:none !important}
+@media (prefers-reduced-motion:no-preference){
+  .card,.panel{animation:rise .34s cubic-bezier(.2,.7,.3,1) both}
+  @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .ecg path.trace{stroke-dasharray:2400;stroke-dashoffset:2400;animation:draw 1.5s ease-out forwards}
+  @keyframes draw{to{stroke-dashoffset:0}}
+}
+@media (max-width:520px){
+  .val{font-size:27px}
+  .brand h1{font-size:17px}
+}
 </style>
 </head>
 <body>
+<div class="wrap">
 
 <header>
-  <div class="hdr">
-    <div class="brand">
-      <div class="brand-icon">
-        <svg viewBox="0 0 100 100"><path d="M12 55 h18 l7-18 9 34 9-25 5 9 h28" stroke="white" stroke-width="8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </div>
-      <div class="brand-txt">
-        <div class="name">HealthMerge</div>
-        <div class="sub">MARCELO P. VIANNA</div>
-      </div>
+  <div class="brand">
+    <div class="mark">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 12h4l2-6 4 12 3-9 2 3h5"/>
+      </svg>
     </div>
-    <div class="hdr-badges">
-      <span id="syncPill" class="pill">sem dados</span>
-      <span id="statusPill" class="pill">off</span>
+    <div>
+      <h1>HealthMerge</h1>
+      <div class="who">Marcelo P. Vianna</div>
+    </div>
+    <div class="status">
+      <span class="pill" id="pillSync">carregando</span>
     </div>
   </div>
+
+  <!-- Assinatura: o traçado de ECG desenha os minutos ativos dos últimos 14 dias.
+       Não é enfeite — a altura de cada pico é um dia de treino. -->
   <div class="ecg">
-    <svg viewBox="0 0 1200 22" preserveAspectRatio="none">
-      <polyline fill="none" stroke="#0E9384" stroke-width="1.3" points="0,11 70,11 80,11 90,3 95,19 100,1 105,17 110,11 180,11 250,11 260,11 270,3 275,19 280,1 285,17 290,11 360,11 430,11 440,11 450,3 455,19 460,1 465,17 470,11 540,11 600,11"/>
-      <polyline fill="none" stroke="#0E9384" stroke-width="1.3" transform="translate(600,0)" points="0,11 70,11 80,11 90,3 95,19 100,1 105,17 110,11 180,11 250,11 260,11 270,3 275,19 280,1 285,17 290,11 360,11 430,11 440,11 450,3 455,19 460,1 465,17 470,11 540,11 600,11"/>
-    </svg>
+    <svg id="ecg" viewBox="0 0 1000 56" preserveAspectRatio="none" aria-hidden="true"></svg>
+    <span class="cap" id="ecgCap">atividade · 14 dias</span>
   </div>
 </header>
 
-<main>
-
-<!-- desktop tabs -->
-<div class="tabs-top">
-  <button class="tab-t active" data-tab="overview">Visão Geral</button>
-  <button class="tab-t" data-tab="bp">Pressão</button>
-  <button class="tab-t" data-tab="sleep">Sono</button>
-  <button class="tab-t" data-tab="activity">Atividade</button>
-  <button class="tab-t" data-tab="ai">Análise IA</button>
-  <button class="tab-t" data-tab="meds">💊 Medicamentos</button>
-  <button class="tab-t" data-tab="settings">Ajustes</button>
-</div>
-
-<!-- ═══ OVERVIEW ═══ -->
-<div class="tab-panel active" id="tab-overview">
-  <div class="sync-strip">
-    <div class="sync-i"><span class="sync-l">Última sync</span><span class="sync-v" id="lastSync">—</span></div>
-    <div class="sync-i"><span class="sync-l">Registros</span><span class="sync-v" id="totalRec">—</span></div>
-    <button class="btn btn-ghost" style="margin-left:auto" onclick="refreshData()">↻ Atualizar</button>
-  </div>
-
-  <div id="alertArea"></div>
-
-  <div class="stats">
-    <div class="stat"><div class="stat-l">FC média</div><div class="stat-v c-blue" id="ovHR">—<span class="stat-u">bpm</span></div><div class="stat-s" id="ovHRsub">—</div></div>
-    <div class="stat"><div class="stat-l">Pressão média</div><div class="stat-v" id="ovBP">—</div><div class="stat-s" id="ovBPsub">—</div></div>
-    <div class="stat"><div class="stat-l">SpO₂ médio</div><div class="stat-v c-teal" id="ovSpo2">—<span class="stat-u">%</span></div><div class="stat-s" id="ovSpo2sub">—</div></div>
-    <div class="stat"><div class="stat-l">Sono médio</div><div class="stat-v c-amber" id="ovSleep">—<span class="stat-u">h</span></div><div class="stat-s" id="ovSleepsub">—</div></div>
-    <div class="stat"><div class="stat-l">Passos/dia</div><div class="stat-v c-teal" id="ovSteps">—</div><div class="stat-s" id="ovStepssub">—</div></div>
-  </div>
-
-  <div class="grid">
-    <div class="card wide"><div class="card-hdr"><span class="card-t">Frequência cardíaca</span><span class="card-m" id="hrMeta">—</span></div><canvas id="chartHR" height="85"></canvas></div>
-    <div class="card wide"><div class="card-hdr"><span class="card-t">Pressão arterial</span><span class="card-m" id="bpMetaOv">—</span></div><canvas id="chartBPov" height="85"></canvas></div>
-  </div>
-  <div class="empty" id="ovEmpty"><div class="ic">📊</div><p>Conecte sua planilha em <strong>Ajustes</strong> para ver os dados.</p></div>
-</div>
-
-<!-- ═══ BP ═══ -->
-<div class="tab-panel" id="tab-bp">
-  <div id="bpEmpty" class="empty"><div class="ic">🩺</div><p>Sem dados de pressão arterial ainda.</p></div>
-  <div id="bpContent" style="display:none">
-    <div class="bp-grid" id="bpGrid"></div>
-    <div class="card wide" style="margin-bottom:1rem">
-      <div class="card-hdr"><span class="card-t">Evolução — sistólica e diastólica</span><span class="card-m" id="bpMeta2">—</span></div>
-      <canvas id="chartBP2" height="110"></canvas>
-    </div>
-    <div class="tbl-wrap">
-      <div class="card-t" style="margin-bottom:.75rem">Medições recentes</div>
-      <table><thead><tr><th>Data</th><th>Hora</th><th>Sist.</th><th>Diast.</th><th>Classificação</th></tr></thead>
-      <tbody id="bpTable"></tbody></table>
-    </div>
-  </div>
-</div>
-
-<!-- ═══ SLEEP ═══ -->
-<div class="tab-panel" id="tab-sleep">
-  <div id="sleepEmpty" class="empty"><div class="ic">💤</div><p>Sem dados de sono ainda.</p></div>
-  <div id="sleepContent" style="display:none">
-    <div class="stats">
-      <div class="stat"><div class="stat-l">Média/noite</div><div class="stat-v c-amber" id="slAvg">—<span class="stat-u">h</span></div></div>
-      <div class="stat"><div class="stat-l">Noites &lt;6h</div><div class="stat-v c-red" id="slLt6">—</div></div>
-      <div class="stat"><div class="stat-l">Noites ≥7h</div><div class="stat-v c-green" id="slGt7">—</div></div>
-      <div class="stat"><div class="stat-l">SpO₂ mínimo</div><div class="stat-v" id="slSpo2min">—<span class="stat-u">%</span></div></div>
-      <div class="stat"><div class="stat-l">SpO₂ &lt;90%</div><div class="stat-v c-red" id="slHypo">—</div><div class="stat-s">eventos</div></div>
-    </div>
-    <div id="sleepApneaAlert" class="alertbox warn" style="display:none">⚠ Múltiplos episódios de SpO₂ abaixo de 90% — padrão sugestivo de apneia do sono. Vale discutir polissonografia com seu médico.</div>
-    <div class="grid">
-      <div class="card wide"><div class="card-hdr"><span class="card-t">Duração do sono</span><span class="card-m" id="sleepMeta">—</span></div><canvas id="chartSleep" height="110"></canvas></div>
-      <div class="card"><div class="card-hdr"><span class="card-t">SpO₂ noturno</span></div><canvas id="chartSpo2" height="150"></canvas></div>
-      <div class="card"><div class="card-hdr"><span class="card-t">Qualidade das noites</span></div><canvas id="chartSleepDist" height="150"></canvas></div>
-    </div>
-  </div>
-</div>
-
-<!-- ═══ ACTIVITY ═══ -->
-<div class="tab-panel" id="tab-activity">
-  <div id="actEmpty" class="empty"><div class="ic">🏃</div><p>Sem dados de atividade ainda.</p></div>
-  <div id="actContent" style="display:none">
-
-    <!-- sub-tabs -->
-    <div class="act-subtabs">
-      <button class="act-tab active" data-act="geral">Geral</button>
-      <button class="act-tab" data-act="corrida">🏃 Corrida</button>
-      <button class="act-tab" data-act="crossfit">🏋️ CrossFit</button>
-      <button class="act-tab" data-act="outros">Outros</button>
-    </div>
-
-    <!-- filtro de período (aplica a todas as modalidades) -->
-    <div class="act-filter">
-      <select id="actFilterMode" class="act-filter-sel" onchange="onActFilterModeChange()">
-        <option value="all">Todo o período</option>
-        <option value="year">Por ano</option>
-        <option value="month">Por mês</option>
-        <option value="day">Por dia</option>
-      </select>
-      <select id="actFilterYear" class="act-filter-sel" style="display:none" onchange="applyActivityFilter()"></select>
-      <select id="actFilterMonth" class="act-filter-sel" style="display:none" onchange="applyActivityFilter()"></select>
-      <input id="actFilterDay" type="date" class="act-filter-sel" style="display:none" onchange="applyActivityFilter()">
-      <span class="act-filter-count" id="actFilterCount"></span>
-    </div>
-
-    <!-- ── GERAL ── -->
-    <div class="act-panel active" id="act-geral">
-      <div class="stats">
-        <div class="stat"><div class="stat-l">Passos/dia</div><div class="stat-v c-teal" id="acSteps">—</div><div class="stat-s" id="acStepsSub">—</div></div>
-        <div class="stat"><div class="stat-l">Dias ≥10 mil</div><div class="stat-v c-green" id="acDays10k">—</div></div>
-        <div class="stat"><div class="stat-l">Sessões registradas</div><div class="stat-v c-blue" id="acTotal">—</div><div class="stat-s" id="acTotalSub">—</div></div>
-        <div class="stat"><div class="stat-l">Km totais</div><div class="stat-v c-teal" id="acKm">—<span class="stat-u">km</span></div></div>
-        <div class="stat"><div class="stat-l">FC repouso (méd.)</div><div class="stat-v c-blue" id="acHRrest">—<span class="stat-u">bpm</span></div><div class="stat-s" id="acHRrestSub">fora de treinos</div></div>
-        <div class="stat"><div class="stat-l">FC durante treino</div><div class="stat-v c-red" id="acHRtrain">—<span class="stat-u">bpm</span></div><div class="stat-s" id="acHRtrainSub">média em atividade</div></div>
-      </div>
-      <div class="grid">
-        <div class="card wide"><div class="card-hdr"><span class="card-t">Passos diários</span><span class="card-m" id="stepsMeta">—</span></div><canvas id="chartSteps" height="110"></canvas></div>
-        <div class="card"><div class="card-hdr"><span class="card-t">Sessões por tipo</span></div><canvas id="chartActTypes" height="160"></canvas></div>
-        <div class="card"><div class="card-hdr"><span class="card-t">Frequência semanal</span><span class="card-m" id="actWeekMeta">—</span></div><canvas id="chartActWeek" height="160"></canvas></div>
-      </div>
-    </div>
-
-    <!-- ── CORRIDA ── -->
-    <div class="act-panel" id="act-corrida">
-      <div class="stats">
-        <div class="stat"><div class="stat-l">Corridas</div><div class="stat-v c-blue" id="runCount">—</div></div>
-        <div class="stat"><div class="stat-l">Km totais</div><div class="stat-v c-teal" id="runKm">—<span class="stat-u">km</span></div></div>
-        <div class="stat"><div class="stat-l">Km por corrida</div><div class="stat-v c-teal" id="runKmAvg">—<span class="stat-u">km</span></div></div>
-        <div class="stat"><div class="stat-l">Pace médio</div><div class="stat-v c-blue" id="runPace">—<span class="stat-u">min/km</span></div></div>
-        <div class="stat"><div class="stat-l">FC média</div><div class="stat-v c-amber" id="runHR">—<span class="stat-u">bpm</span></div></div>
-        <div class="stat"><div class="stat-l">Tempo total</div><div class="stat-v c-muted" id="runTime">—</div></div>
-      </div>
-      <div class="grid">
-        <div class="card wide"><div class="card-hdr"><span class="card-t">Distância por sessão</span><span class="card-m" id="runChartMeta">—</span></div><canvas id="chartRunKm" height="110"></canvas></div>
-        <div class="card"><div class="card-hdr"><span class="card-t">Distribuição de distâncias</span></div><canvas id="chartRunDist" height="160"></canvas></div>
-        <div class="card"><div class="card-hdr"><span class="card-t">FC durante corridas</span></div><canvas id="chartRunHR" height="160"></canvas></div>
-      </div>
-      <div class="tbl-wrap">
-        <div class="card-t" style="margin-bottom:.75rem">Histórico de corridas</div>
-        <table><thead><tr><th>Data</th><th>Distância</th><th>Duração</th><th>Pace</th><th>FC méd.</th></tr></thead>
-        <tbody id="runTable"></tbody></table>
-        <div class="empty" id="runEmpty" style="padding:1.5rem;display:none"><p>Nenhuma corrida registrada ainda.</p></div>
-      </div>
-    </div>
-
-    <!-- ── CROSSFIT ── -->
-    <div class="act-panel" id="act-crossfit">
-      <div class="stats">
-        <div class="stat"><div class="stat-l">Sessões CrossFit</div><div class="stat-v c-blue" id="cfCount">—</div></div>
-        <div class="stat"><div class="stat-l">Por semana (média)</div><div class="stat-v c-teal" id="cfPerWeek">—</div></div>
-        <div class="stat"><div class="stat-l">FC média</div><div class="stat-v c-amber" id="cfHR">—<span class="stat-u">bpm</span></div></div>
-        <div class="stat"><div class="stat-l">FC máxima registrada</div><div class="stat-v c-red" id="cfHRmax">—<span class="stat-u">bpm</span></div></div>
-        <div class="stat"><div class="stat-l">Duração média</div><div class="stat-v c-muted" id="cfDur">—<span class="stat-u">min</span></div></div>
-        <div class="stat"><div class="stat-l">Streak atual</div><div class="stat-v c-green" id="cfStreak">—<span class="stat-u">dias</span></div></div>
-      </div>
-      <div class="grid">
-        <div class="card wide"><div class="card-hdr"><span class="card-t">FC média das sessões</span><span class="card-m">últimas 30 · janela real do treino</span></div><canvas id="chartCFhr" height="110"></canvas></div>
-        <div class="card"><div class="card-hdr"><span class="card-t">Sessões por semana</span><span class="card-m" id="cfChartMeta">—</span></div><canvas id="chartCFweek" height="160"></canvas></div>
-        <div class="card"><div class="card-hdr"><span class="card-t">Dias da semana</span></div><canvas id="chartCFdays" height="160"></canvas></div>
-      </div>
-      <div class="tbl-wrap">
-        <div class="card-t" style="margin-bottom:.75rem">Histórico de treinos</div>
-        <table><thead><tr><th>Data</th><th>Hora</th><th>Tipo registrado</th><th>Duração</th><th>FC</th></tr></thead>
-        <tbody id="cfTable"></tbody></table>
-        <div class="empty" id="cfEmpty" style="padding:1.5rem;display:none"><p>Nenhum treino CrossFit registrado ainda.</p></div>
-      </div>
-    </div>
-
-    <!-- ── OUTROS ── -->
-    <div class="act-panel" id="act-outros">
-      <div class="stats">
-        <div class="stat"><div class="stat-l">Outras atividades</div><div class="stat-v c-blue" id="otCount">—</div></div>
-        <div class="stat"><div class="stat-l">Km registrados</div><div class="stat-v c-teal" id="otKm">—<span class="stat-u">km</span></div></div>
-      </div>
-      <div class="tbl-wrap">
-        <div class="card-t" style="margin-bottom:.75rem">Todas as atividades</div>
-        <table><thead><tr><th>Data</th><th>Tipo</th><th>Distância</th><th>Duração</th></tr></thead>
-        <tbody id="otTable"></tbody></table>
-        <div class="empty" id="otEmpty" style="padding:1.5rem;display:none"><p>Nenhuma outra atividade registrada.</p></div>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ═══ AI ═══ -->
-<div class="tab-panel" id="tab-ai">
-  <div class="cfg">
-    <div class="cfg-t">🧠 Análise inteligente dos seus dados</div>
-    <div class="hint" style="margin-top:0;margin-bottom:.9rem">
-      Gera uma análise clínica personalizada dos dados coletados — tendências de pressão, padrões de sono/SpO₂, frequência cardíaca e atividade — com insights e pontos de atenção para discutir com seus médicos.
-    </div>
-    <div class="cfg-row">
-      <button class="btn btn-primary" id="btnAnalyze" onclick="runAIAnalysis()">✦ Analisar com Claude</button>
-      <button class="btn btn-ghost" onclick="copyPromptToClipboard()">⧉ Copiar prompt p/ app Claude</button>
-    </div>
-    <div class="hint" id="aiModeHint">
-      Sem chave de API configurada — use <strong>"Copiar prompt"</strong> e cole no app do Claude (grátis). Ou configure uma chave de API da Anthropic em Ajustes para análise com um toque.
-    </div>
-  </div>
-
-  <div class="card wide" id="aiResultCard" style="display:none;margin-bottom:1.25rem">
-    <div class="card-hdr">
-      <span class="card-t">Análise · <span id="aiDate" style="color:var(--faint);font-weight:400"></span></span>
-      <button class="btn btn-muted" style="padding:.3rem .7rem;font-size:.68rem" onclick="copyAnalysis()">⧉ Copiar</button>
-    </div>
-    <div id="aiResult" style="font-size:.82rem;line-height:1.75;white-space:pre-wrap;"></div>
-  </div>
-
-  <div class="alertbox info" style="font-size:.7rem">
-    ℹ A análise é gerada por IA a partir dos dados dos seus wearables e não substitui avaliação médica. Leve os insights para discutir com seu cardiologista e endocrinologista.
-  </div>
-</div>
-
-<!-- ═══ MEDICAMENTOS ═══ -->
-<div class="tab-panel" id="tab-meds">
-  <div id="medsEmpty" class="empty"><div class="ic">💊</div><p>Conecte a planilha e o Web App do Apps Script em <strong>Ajustes</strong> para ver seus medicamentos.</p></div>
-  <div id="medsContent" style="display:none">
-
-    <div class="card-hdr" style="margin-bottom:.75rem">
-      <span class="card-t" style="font-size:.9rem">Medicamentos periódicos</span>
-      <span class="card-m" id="medsPeriodicMeta">—</span>
-    </div>
-    <div class="med-grid" id="medsPeriodicGrid"></div>
-
-    <div class="card-hdr" style="margin-bottom:.75rem;margin-top:.5rem">
-      <span class="card-t" style="font-size:.9rem">Contínuos / diários</span>
-      <span class="card-m">checklist informativo — sem cálculo de próxima dose</span>
-    </div>
-    <div class="med-daily-list" id="medsDailyList"></div>
-
-  </div>
-</div>
-
-<!-- Modal de confirmação: registrar aplicação + criar lembrete -->
-<div class="modal-backdrop" id="medModalBackdrop" style="display:none">
-  <div class="modal-box">
-    <div class="modal-title" id="medModalTitle">Confirmar aplicação</div>
-    <div class="modal-body" id="medModalBody"></div>
-    <div id="medModalDateRow" style="display:none;margin:-.5rem 0 1.1rem">
-      <label class="med-date-l" style="display:block;margin-bottom:.3rem">Data em que foi aplicado</label>
-      <input type="date" id="medModalDateInput" class="inp" style="width:100%" onchange="onMedModalDateChange()">
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-muted" onclick="closeMedModal()">Cancelar</button>
-      <button class="btn btn-primary" id="medModalConfirmBtn" onclick="confirmMedModalAction()">Confirmar</button>
-    </div>
-  </div>
-</div>
-
-<!-- ═══ SETTINGS ═══ -->
-<div class="tab-panel" id="tab-settings">
-  <div class="cfg">
-    <div class="cfg-t">Fonte de dados</div>
-    <div class="cfg-row">
-      <input class="inp" id="sheetUrl" placeholder="URL da Google Sheet (HealthMerge_DB)">
-      <button class="btn btn-primary" onclick="connectSheet()">Conectar</button>
-      <button class="btn btn-muted" onclick="clearConfig()">Limpar</button>
-    </div>
-    <div class="hint">Cole o link da planilha <code>HealthMerge_DB</code> criada pelo Apps Script. Ela precisa estar compartilhada como "Qualquer pessoa com o link pode ver".</div>
-  </div>
-
-  <div class="cfg">
-    <div class="cfg-t">Análise IA (opcional)</div>
-    <div class="cfg-row">
-      <input class="inp" id="apiKey" type="password" placeholder="Chave de API da Anthropic (sk-ant-...)">
-      <button class="btn btn-primary" onclick="saveApiKey()">Salvar</button>
-    </div>
-    <div class="hint">
-      Com uma chave, o botão <strong>"Analisar com Claude"</strong> funciona direto no app (uso da API é cobrado pela Anthropic — centavos por análise).<br>
-      Sem chave, use <strong>"Copiar prompt"</strong> na aba Análise IA e cole no app do Claude — gratuito com sua assinatura.<br>
-      A chave fica salva apenas neste aparelho (localStorage).
-    </div>
-  </div>
-
-  <div class="cfg">
-    <div class="cfg-t">💊 Medicamentos — conexão com o Web App</div>
-    <div class="cfg-row">
-      <input class="inp" id="medsWebAppUrl" placeholder="URL do Web App (termina em /exec)">
-      <button class="btn btn-primary" onclick="saveMedsConfig()">Salvar</button>
-    </div>
-    <div class="cfg-row" style="margin-top:.5rem">
-      <input class="inp" id="medsApiToken" type="password" placeholder="Token (o mesmo definido em CONFIG.API_TOKEN no Code.gs)">
-    </div>
-    <div class="hint">
-      No Apps Script: <strong>Implantar → Nova implantação → Aplicativo da Web</strong> → executar como "Eu" → acesso "Qualquer pessoa" → copie a URL gerada (termina em <code>/exec</code>) e cole acima.<br>
-      O token deve ser idêntico ao valor de <code>CONFIG.API_TOKEN</code> no topo do <code>Code.gs</code> — protege contra chamadas indevidas ao seu script.<br>
-      Isso habilita a aba <strong>💊 Medicamentos</strong>: registrar aplicações e criar lembretes no seu Google Calendar automaticamente.
-    </div>
-  </div>
-
-  <div class="cfg">
-    <div class="cfg-t">Instalar como app no celular</div>
-    <div class="step"><div class="step-n">1</div><div class="step-b">Abra este site no <strong>Chrome</strong> (Android) ou <strong>Safari</strong> (iPhone).</div></div>
-    <div class="step"><div class="step-n">2</div><div class="step-b"><strong>Android:</strong> menu ⋮ → <code>Adicionar à tela inicial</code> → Instalar.<br><strong>iPhone:</strong> botão compartilhar ⬆ → <code>Adicionar à Tela de Início</code>.</div></div>
-    <div class="step"><div class="step-n">3</div><div class="step-b">O ícone do HealthMerge aparece na tela inicial e abre em tela cheia, como um app.</div></div>
-  </div>
-
-  <div class="cfg">
-    <div class="cfg-t">Como funciona</div>
-    <div class="step"><div class="step-n">●</div><div class="step-b">O <strong>Health Sync</strong> deposita seus dados (Samsung + Huawei) no Google Drive diariamente.</div></div>
-    <div class="step"><div class="step-n">●</div><div class="step-b">O <strong>Google Apps Script</strong> processa tudo às 8h e atualiza a planilha.</div></div>
-    <div class="step"><div class="step-n">●</div><div class="step-b">Este app lê a planilha e mostra os gráficos — seus dados ficam só na sua conta Google.</div></div>
-  </div>
-</div>
-
-</main>
-
-<!-- bottom nav -->
-<nav class="bottom-nav">
-  <button class="nav-item active" data-tab="overview">
-    <svg viewBox="0 0 24 24"><rect x="3" y="12" width="4" height="8" rx="1"/><rect x="10" y="6" width="4" height="14" rx="1"/><rect x="17" y="9" width="4" height="11" rx="1"/></svg>
-    Visão
-  </button>
-  <button class="nav-item" data-tab="bp">
-    <svg viewBox="0 0 24 24"><path d="M12 21C7 16.5 4 13 4 9.5A4.5 4.5 0 0 1 12 6a4.5 4.5 0 0 1 8 3.5c0 3.5-3 7-8 11.5z"/><path d="M6 12h3l2-4 2 6 1.5-3H18"/></svg>
-    Pressão
-  </button>
-  <button class="nav-item" data-tab="sleep">
-    <svg viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"/></svg>
-    Sono
-  </button>
-  <button class="nav-item" data-tab="activity">
-    <svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="2"/><path d="M9 22l2-7-3-3 4-4 2 3h4"/><path d="M7 12l-2 2"/></svg>
-    Atividade
-  </button>
-  <button class="nav-item" data-tab="ai">
-    <svg viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.9 2.6L22.5 18.5l-2.6.9L19 22l-.9-2.6-2.6-.9 2.6-.9z"/></svg>
-    IA
-  </button>
-  <button class="nav-item" data-tab="meds">
-    <svg viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="9" rx="2"/><path d="M8 9V6a4 4 0 0 1 8 0v3"/><line x1="12" y1="12" x2="12" y2="15"/><line x1="10.5" y1="13.5" x2="13.5" y2="13.5"/></svg>
-    Remédios
-  </button>
-  <button class="nav-item" data-tab="settings">
-    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-    Ajustes
-  </button>
+<nav role="tablist">
+  <button role="tab" data-t="geral"  aria-selected="true">Visão geral</button>
+  <button role="tab" data-t="ativ"   aria-selected="false">Atividades</button>
+  <button role="tab" data-t="sono"   aria-selected="false">Sono</button>
+  <button role="tab" data-t="pa"     aria-selected="false">Pressão</button>
+  <button role="tab" data-t="meds"   aria-selected="false">Medicamentos</button>
 </nav>
 
-<footer>HealthMerge · uso pessoal · dados na sua conta Google, processados localmente no navegador</footer>
+<!-- ─────────── VISÃO GERAL ─────────── -->
+<section id="tab-geral">
+  <div class="grid">
+    <div class="card" style="--c:var(--ch-fc)">
+      <div class="lab">Freq. cardíaca</div>
+      <div class="val" id="gFc">—<span class="u">bpm</span></div>
+      <div class="sub" id="gFcSub">repouso e treino</div>
+    </div>
+    <div class="card" style="--c:var(--ch-pa)">
+      <div class="lab">Pressão</div>
+      <div class="val" id="gPa">—<span class="u">mmHg</span></div>
+      <div class="sub" id="gPaSub">média do período</div>
+    </div>
+    <div class="card" style="--c:var(--ch-o2)">
+      <div class="lab">Saturação</div>
+      <div class="val" id="gO2">—<span class="u">%</span></div>
+      <div class="sub" id="gO2Sub">média noturna</div>
+    </div>
+    <div class="card" style="--c:var(--ch-sono)">
+      <div class="lab">Sono</div>
+      <div class="val" id="gSono">—<span class="u">h</span></div>
+      <div class="sub" id="gSonoSub">por noite</div>
+    </div>
+    <div class="card" style="--c:var(--ch-ativ)">
+      <div class="lab">Atividade</div>
+      <div class="val" id="gAtiv">—<span class="u">min/dia</span></div>
+      <div class="sub" id="gAtivSub">média de 14 dias</div>
+    </div>
+  </div>
+  <div class="note">Estes números cobrem os últimos 6 meses. Para o detalhe de cada métrica, abra a aba correspondente.</div>
+</section>
+
+<!-- ─────────── ATIVIDADES ─────────── -->
+<section id="tab-ativ" hidden>
+  <div class="panel">
+    <h2>Treinos recentes <span class="n" id="ativN"></span></h2>
+    <div id="ativBox"><div class="empty">carregando…</div></div>
+  </div>
+  <div class="grid" style="margin-top:12px">
+    <div class="card" style="--c:var(--ch-fc)">
+      <div class="lab">Corridas</div><div class="val" id="cCorrida">—</div>
+      <div class="sub">últimos 6 meses</div>
+    </div>
+    <div class="card" style="--c:var(--ch-ativ)">
+      <div class="lab">CrossFit</div><div class="val" id="cCross">—</div>
+      <div class="sub">últimos 6 meses</div>
+    </div>
+    <div class="card" style="--c:var(--ch-o2)">
+      <div class="lab">Caminhadas</div><div class="val" id="cCamin">—</div>
+      <div class="sub">últimos 6 meses</div>
+    </div>
+    <div class="card" style="--c:var(--ch-fc)">
+      <div class="lab">FC de pico</div><div class="val" id="cFcMax">—<span class="u">bpm</span></div>
+      <div class="sub" id="cFcMaxSub">maior valor em treino</div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────── SONO ─────────── -->
+<section id="tab-sono" hidden>
+  <div class="panel">
+    <h2>Últimas noites <span class="n" id="sonoN"></span></h2>
+    <div id="sonoBox"><div class="empty">carregando…</div></div>
+  </div>
+  <div class="grid" style="margin-top:12px">
+    <div class="card" style="--c:var(--ch-sono)">
+      <div class="lab">Média</div><div class="val" id="sMed">—<span class="u">h</span></div>
+      <div class="sub" id="sMedSub"></div>
+    </div>
+    <div class="card" style="--c:var(--ch-sono)">
+      <div class="lab">Noites &lt; 6h</div><div class="val" id="sCurta">—</div>
+      <div class="sub">no período</div>
+    </div>
+    <div class="card" style="--c:var(--ch-o2)">
+      <div class="lab">Saturação mínima</div><div class="val" id="sO2min">—<span class="u">%</span></div>
+      <div class="sub" id="sO2sub"></div>
+    </div>
+  </div>
+  <div class="note" id="notaO2" hidden></div>
+</section>
+
+<!-- ─────────── PRESSÃO ─────────── -->
+<section id="tab-pa" hidden>
+  <div class="panel">
+    <h2>Medições recentes <span class="n" id="paN"></span></h2>
+    <div id="paBox"><div class="empty">carregando…</div></div>
+  </div>
+  <div class="grid" style="margin-top:12px">
+    <div class="card" style="--c:var(--ch-pa)">
+      <div class="lab">Média sistólica</div><div class="val" id="paSys">—</div>
+      <div class="sub">últimos 6 meses</div>
+    </div>
+    <div class="card" style="--c:var(--ch-pa)">
+      <div class="lab">Média diastólica</div><div class="val" id="paDia">—</div>
+      <div class="sub">últimos 6 meses</div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────── MEDICAMENTOS ─────────── -->
+<section id="tab-meds" hidden>
+  <div class="panel">
+    <h2>Aplicações periódicas <span class="n" id="medN"></span></h2>
+    <div id="medBox"><div class="empty">carregando…</div></div>
+  </div>
+  <div class="panel">
+    <h2>Uso contínuo</h2>
+    <div id="contBox"><div class="empty">—</div></div>
+  </div>
+  <div class="note">Revise doses e vias: a lista foi pré-carregada e pode estar desatualizada. Edite direto na planilha, aba <b>Medicamentos</b>.</div>
+</section>
+
+</div>
 
 <script>
-// ── PWA manifest dinâmico (funciona em arquivo único) ──
-const manifest = {
-  name: 'HealthMerge', short_name: 'HealthMerge',
-  start_url: location.href.split('#')[0], display: 'standalone',
-  background_color: '#F7F9FB', theme_color: '#0E9384',
-  icons: [{ src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230E9384'/%3E%3Cpath d='M15 55 h18 l6-16 8 30 8-22 5 8 h25' stroke='white' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E", sizes: '512x512', type: 'image/svg+xml', purpose: 'any' }]
-};
-document.getElementById('manifestLink').href =
-  URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: 'application/json' }));
+/* ══════════════════════════════════════════════════════════════
+   O dashboard NÃO calcula nada sobre a base. Ele lê a aba Resumo,
+   onde o backend já gravou cada número pronto. É isso que torna o
+   carregamento rápido e elimina a duplicação de lógica que
+   quebrava a versão anterior.
+   ══════════════════════════════════════════════════════════════ */
+const SHEET_ID   = '1dpcyeWeC2H-ojPMsl5Mgbi5X5_8X1FGHmY51UxZvGTw';
+const WEBAPP_URL = '';   // cole aqui a URL do Web App (Implantar → Aplicativo da Web)
+const API_TOKEN  = 'hm-marcelo-19830106';
 
-// ── STATE ──
-const S = {
-  sheetId: localStorage.getItem('hm_sheet_id') || '',
-  data: { records: [], summary: {} },
-  charts: {}
-};
+let R = {};              // chave → valor, vindo da aba Resumo
 
-window.onload = () => {
-  if (S.sheetId) {
-    document.getElementById('sheetUrl').value = 'https://docs.google.com/spreadsheets/d/' + S.sheetId;
-    refreshData();
-  } else {
-    showTab('settings');
-  }
-  // Medicamentos: restaura config salva e carrega a lista se já configurado
-  const medsUrl = localStorage.getItem('hm_meds_url');
-  const medsToken = localStorage.getItem('hm_meds_token');
-  if (medsUrl) document.getElementById('medsWebAppUrl').value = medsUrl;
-  if (medsToken) document.getElementById('medsApiToken').value = medsToken;
-  if (medsConfigured()) loadMedicamentos();
-};
-
-// ── TABS ──
-document.querySelectorAll('[data-tab]').forEach(el =>
-  el.addEventListener('click', () => showTab(el.dataset.tab)));
-
-function showTab(id) {
-  document.querySelectorAll('[data-tab]').forEach(el =>
-    el.classList.toggle('active', el.dataset.tab === id));
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.getElementById('tab-' + id).classList.add('active');
-}
-
-// ── CONNECT ──
-function connectSheet() {
-  const url = document.getElementById('sheetUrl').value.trim();
-  const m = url.match(/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
-  if (!m) { showAlert('URL inválida — cole o link completo da planilha.', 'err'); return; }
-  S.sheetId = m[1];
-  localStorage.setItem('hm_sheet_id', S.sheetId);
-  refreshData();
-  showTab('overview');
-}
-
-function clearConfig() {
-  localStorage.removeItem('hm_sheet_id');
-  S.sheetId = '';
-  document.getElementById('sheetUrl').value = '';
-  setPill('statusPill', 'off', '');
-  setPill('syncPill', 'sem dados', '');
-}
-
-// ── FETCH ──
-async function refreshData() {
-  if (!S.sheetId) { showAlert('Configure a planilha em Ajustes.', 'warn'); return; }
-  setPill('statusPill', 'carregando…', 'warn');
-  try {
-    const [records, summary] = await Promise.all([
-      fetchCsv(S.sheetId, 'Registros'),
-      fetchCsv(S.sheetId, 'Resumo'),
-    ]);
-    S.data.records = parseRecords(records);
-    S.data.summary = parseSummary(summary);
-    setPill('statusPill', 'conectado', 'ok');
-
-    const last = S.data.summary['geral.ultima_atualizacao'];
-    if (last) {
-      const d = new Date(last);
-      setPill('syncPill', d.toLocaleDateString('pt-BR'), 'ok');
-      document.getElementById('lastSync').textContent = d.toLocaleString('pt-BR');
-    }
-    document.getElementById('totalRec').textContent =
-      (S.data.summary['geral.total_registros'] || S.data.records.length);
-    renderAll();
-  } catch (e) {
-    setPill('statusPill', 'erro', 'err');
-    showAlert('Não foi possível carregar. Verifique se a planilha está compartilhada como "Qualquer pessoa com o link". (' + e.message + ')', 'err');
-  }
-}
-
-async function fetchCsv(id, sheet) {
-  const r = await fetch(`https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheet)}`);
-  if (!r.ok) throw new Error('HTTP ' + r.status);
-  return r.text();
-}
-
-function parseRecords(csv) {
-  const lines = csv.split('\n').filter(l => l.trim());
-  if (lines.length < 2) return [];
-  const headers = splitCsv(lines[0]).map(h => h.replace(/"/g, ''));
-  return lines.slice(1).map(line => {
-    const cols = splitCsv(line);
-    const row = {};
-    headers.forEach((h, i) => row[h] = (cols[i] || '').replace(/"/g, '').trim());
-    return row;
-  }).filter(r => r.timestamp_ms || r.data);
-}
-
-function parseSummary(csv) {
-  const lines = csv.split('\n').filter(l => l.trim());
-  const out = {};
-  for (let i = 1; i < lines.length; i++) {
-    const c = splitCsv(lines[i]).map(x => x.replace(/"/g, '').trim());
-    if (c.length >= 3) out[c[0] + '.' + c[1]] = c[2];
-  }
-  return out;
-}
-
-function splitCsv(line) {
-  const r = []; let cur = '', q = false;
-  for (const ch of line) {
-    if (ch === '"') q = !q;
-    else if (ch === ',' && !q) { r.push(cur); cur = ''; }
-    else cur += ch;
-  }
-  r.push(cur);
-  return r;
-}
-
-// ── RENDER ──
-function renderAll() { populateActivityFilterOptions(); renderOverview(); renderBP(); renderSleep(); renderActivity(); }
-
-function renderOverview() {
-  document.getElementById('ovEmpty').style.display = 'none';
-  const sm = S.data.summary;
-
-  if (sm['heart_rate.media']) {
-    document.getElementById('ovHR').innerHTML = Math.round(sm['heart_rate.media']) + '<span class="stat-u">bpm</span>';
-    document.getElementById('ovHRsub').textContent = 'mín ' + (sm['heart_rate.min']||'—') + ' · máx ' + (sm['heart_rate.max']||'—');
-  }
-  const sys = sm['blood_pressure.sys_media'], dia = sm['blood_pressure.dia_media'];
-  if (sys && dia) {
-    const cl = bpClass(+sys, +dia);
-    document.getElementById('ovBP').innerHTML = `<span class="${cl.c}">${Math.round(sys)}/${Math.round(dia)}</span><span class="stat-u">mmHg</span>`;
-    document.getElementById('ovBPsub').textContent = cl.label;
-  }
-  if (sm['spo2.media']) {
-    const el = document.getElementById('ovSpo2');
-    el.innerHTML = sm['spo2.media'] + '<span class="stat-u">%</span>';
-    el.className = 'stat-v ' + ((+sm['spo2.min'] || 100) < 90 ? 'c-red' : 'c-teal');
-    document.getElementById('ovSpo2sub').textContent = (sm['spo2.eventos_lt90']||0) + ' eventos <90%';
-  }
-  if (sm['sleep.media_horas']) {
-    document.getElementById('ovSleep').innerHTML = (+sm['sleep.media_horas']).toFixed(1) + '<span class="stat-u">h</span>';
-    document.getElementById('ovSleepsub').textContent = sm['sleep.n'] + ' noites';
-  }
-  if (sm['steps.media_diaria']) {
-    document.getElementById('ovSteps').textContent = Number(sm['steps.media_diaria']).toLocaleString('pt-BR');
-    document.getElementById('ovStepssub').textContent = (sm['steps.dias_gte10000']||0) + ' dias ≥10 mil';
-  }
-
-  // HR chart (média diária)
-  destroy('chartHR');
-  const hr = S.data.records.filter(r => r.metrica === 'heart_rate');
-  if (hr.length) {
-    const byDay = {};
-    hr.forEach(r => { (byDay[r.data] = byDay[r.data] || []).push(+r.valor); });
-    const labels = Object.keys(byDay);
-    const vals = labels.map(d => +(byDay[d].reduce((a,b)=>a+b,0)/byDay[d].length).toFixed(1));
-    document.getElementById('hrMeta').textContent = labels.length + ' dias';
-    mkChart('chartHR', 'line', labels.slice(-90), [{
-      label: 'FC média (bpm)', data: vals.slice(-90),
-      borderColor: '#175CD3', backgroundColor: '#175CD315',
-      tension: .35, pointRadius: 0, borderWidth: 2, fill: true
-    }]);
-  }
-  renderBPChart('chartBPov', 'bpMetaOv');
-}
-
-function renderBPChart(canvasId, metaId) {
-  destroy(canvasId);
-  const bps = S.data.records.filter(r => r.metrica === 'blood_pressure');
-  if (!bps.length) return;
-  document.getElementById(metaId).textContent = bps.length + ' medições';
-  mkChart(canvasId, 'line', bps.map(r => r.data), [
-    { label: 'Sistólica', data: bps.map(r => +r.valor), borderColor: '#D92D20', backgroundColor: '#D92D2010', tension: .3, pointRadius: 2, borderWidth: 2 },
-    { label: 'Diastólica', data: bps.map(r => +r.valor2), borderColor: '#175CD3', backgroundColor: '#175CD310', tension: .3, pointRadius: 2, borderWidth: 2 },
-    { label: 'Meta <130', data: bps.map(() => 130), borderColor: '#B5470860', borderDash: [5,5], pointRadius: 0, borderWidth: 1.2 },
-  ], { y: { min: 50, max: 200 } });
-}
-
-function renderBP() {
-  const bps = S.data.records.filter(r => r.metrica === 'blood_pressure');
-  const has = bps.length > 0;
-  document.getElementById('bpEmpty').style.display = has ? 'none' : 'block';
-  document.getElementById('bpContent').style.display = has ? 'block' : 'none';
-  if (!has) return;
-
-  const sm = S.data.summary;
-  const sysA = sm['blood_pressure.sys_media'], diaA = sm['blood_pressure.dia_media'];
-  const lS = sm['blood_pressure.ultima_sys'], lD = sm['blood_pressure.ultima_dia'];
-  const lT = sm['blood_pressure.ultima_ts'] ? new Date(+sm['blood_pressure.ultima_ts']).toLocaleDateString('pt-BR') : '—';
-  const clA = sysA ? bpClass(+sysA, +diaA) : { label:'—', tag:'' };
-  const clL = lS ? bpClass(+lS, +lD) : { label:'—', tag:'' };
-
-  document.getElementById('bpGrid').innerHTML = `
-    <div class="card"><div class="stat-l">Última · ${lT}</div>
-      <div class="bp-reading"><span class="bp-sys">${lS?Math.round(lS):'—'}</span><span class="bp-sep">/</span><span class="bp-dia">${lD?Math.round(lD):'—'}</span></div>
-      <span class="tag ${clL.tag}">${clL.label}</span></div>
-    <div class="card"><div class="stat-l">Média · ${sm['blood_pressure.n']||0} medições</div>
-      <div class="bp-reading"><span class="bp-sys">${sysA?Math.round(sysA):'—'}</span><span class="bp-sep">/</span><span class="bp-dia">${diaA?Math.round(diaA):'—'}</span></div>
-      <span class="tag ${clA.tag}">${clA.label}</span></div>
-    <div class="card"><div class="stat-l">Faixa sistólica</div>
-      <div class="bp-reading"><span class="bp-sys" style="font-size:1.4rem">${sm['blood_pressure.sys_min']||'—'}–${sm['blood_pressure.sys_max']||'—'}</span></div>
-      <div class="stat-s">mmHg</div></div>`;
-
-  renderBPChart('chartBP2', 'bpMeta2');
-
-  const tbody = document.getElementById('bpTable');
-  tbody.innerHTML = '';
-  for (const r of bps.slice(-40).reverse()) {
-    const cl = bpClass(+r.valor, +r.valor2);
-    tbody.insertAdjacentHTML('beforeend',
-      `<tr><td>${r.data}</td><td>${r.hora}</td><td style="font-weight:600">${Math.round(r.valor)}</td><td>${Math.round(r.valor2)}</td><td><span class="tag ${cl.tag}">${cl.label}</span></td></tr>`);
-  }
-}
-
-function renderSleep() {
-  const sm = S.data.summary;
-  const has = sm['sleep.n'] || sm['spo2.n'];
-  document.getElementById('sleepEmpty').style.display = has ? 'none' : 'block';
-  document.getElementById('sleepContent').style.display = has ? 'block' : 'none';
-  if (!has) return;
-
-  document.getElementById('slAvg').innerHTML = (+(sm['sleep.media_horas']||0)).toFixed(1) + '<span class="stat-u">h</span>';
-  document.getElementById('slLt6').textContent = sm['sleep.noites_lt6'] || '0';
-  document.getElementById('slGt7').textContent = sm['sleep.noites_gte7'] || '0';
-  const minS = +(sm['spo2.min'] || 100);
-  const el = document.getElementById('slSpo2min');
-  el.innerHTML = (sm['spo2.min']||'—') + '<span class="stat-u">%</span>';
-  el.className = 'stat-v ' + (minS < 90 ? 'c-red' : 'c-teal');
-  const hypo = +(sm['spo2.eventos_lt90'] || 0);
-  document.getElementById('slHypo').textContent = hypo;
-  document.getElementById('sleepApneaAlert').style.display = hypo > 2 ? 'block' : 'none';
-
-  destroy('chartSleep');
-  const sl = S.data.records.filter(r => r.metrica === 'sleep');
-  if (sl.length) {
-    const isMin = sl.reduce((a,r) => a + +r.valor, 0) / sl.length > 20;
-    const vals = sl.map(r => +(isMin ? r.valor/60 : r.valor).toFixed(2));
-    document.getElementById('sleepMeta').textContent = sl.length + ' noites';
-    mkChart('chartSleep', 'bar', sl.map(r => r.data), [{
-      label: 'Sono (h)', data: vals,
-      backgroundColor: vals.map(v => v < 5 ? '#D92D20' : v < 6 ? '#F79009' : '#0E9384'),
-      borderRadius: 4
-    }]);
-  }
-
-  destroy('chartSpo2');
-  const sp = S.data.records.filter(r => r.metrica === 'spo2');
-  if (sp.length) {
-    mkChart('chartSpo2', 'bar', sp.map(r => r.data), [{
-      label: 'SpO₂ (%)', data: sp.map(r => +r.valor),
-      backgroundColor: sp.map(r => +r.valor < 90 ? '#D92D20' : +r.valor < 95 ? '#F79009' : '#0E9384'),
-      borderRadius: 4
-    }], { y: { min: 85, max: 100 } });
-  }
-
-  destroy('chartSleepDist');
-  const slH = sl.map(r => +r.valor > 20 ? +r.valor/60 : +r.valor);
-  if (slH.length) {
-    const ctx = document.getElementById('chartSleepDist').getContext('2d');
-    S.charts.chartSleepDist = new Chart(ctx, {
-      type: 'doughnut',
-      data: { labels: ['<5h','5–6h','6–7h','≥7h'], datasets: [{
-        data: [slH.filter(v=>v<5).length, slH.filter(v=>v>=5&&v<6).length, slH.filter(v=>v>=6&&v<7).length, slH.filter(v=>v>=7).length],
-        backgroundColor: ['#D92D20','#F79009','#175CD3','#0E9384'], borderWidth: 2, borderColor: '#fff'
-      }]},
-      options: { plugins: { legend: { position:'bottom', labels: { color:'#64748B', font:{ family:'Inter', size:11 }, boxWidth:10, padding:12 }}}}
+/* ── navegação por abas ── */
+document.querySelectorAll('nav button').forEach(function (b) {
+  b.addEventListener('click', function () {
+    document.querySelectorAll('nav button').forEach(function (x) {
+      x.setAttribute('aria-selected', x === b ? 'true' : 'false');
     });
-  }
-}
-
-// ── MIN/MAX SEGUROS (sem spread) ──
-// Math.max(...arr) / Math.min(...arr) estouram a pilha ("Maximum call stack
-// size exceeded") quando arr tem dezenas de milhares de itens, pois cada
-// elemento vira um argumento de função. Com a base já em ~50k registros, os
-// arrays de FC cruzaram esse limite. reduce percorre sem spread.
-function arrMax(arr) { let m = -Infinity; for (let i=0;i<arr.length;i++) if (arr[i]>m) m=arr[i]; return m; }
-function arrMin(arr) { let m =  Infinity; for (let i=0;i<arr.length;i++) if (arr[i]<m) m=arr[i]; return m; }
-
-// ── FC POR SESSÃO (aproximação — plano A) ──
-// Cruza a FC "solta" do relógio (pasta Frequência Cardíaca, já na base) com a
-// janela de horário de cada treino. É aproximado: a FC de fita/CSV é amostrada
-// esparsamente e pode não cobrir os picos reais do esforço (a série fina fica
-// nos .tcx, ainda não importados). Para reduzir buracos:
-//  · TOL_MS estende a janela alguns minutos antes/depois (relógio nem sempre
-//    inicia/encerra exatamente junto com o app de exercício);
-//  · se a janela não pegar nenhuma amostra, cai para a FC do mesmo dia acima de
-//    um piso (fallback grosseiro, melhor que exibir "—").
-// Retorna { amostras:[bpm...], aproximado:bool } — 'aproximado' vira true quando
-// o fallback de dia foi usado, para o dashboard poder sinalizar.
-const HR_SESSION_TOL_MS = 4 * 60 * 1000; // 4 min de folga em cada ponta
-
-function hrSamplesForSession(r, hrTsRecs, hrDayRecs) {
-  const start = parseDMYTime(`${r.data} ${r.hora||'00:00'}`);
-  const durSec = parseFloat(String(r.valor2||'').split('|')[0]) || 3600;
-  if (start) {
-    const wStart = start - HR_SESSION_TOL_MS;
-    const wEnd   = start + Math.max(durSec,300)*1000 + HR_SESSION_TOL_MS;
-    const inWin = hrTsRecs.filter(x => x.ts >= wStart && x.ts <= wEnd).map(x => x.v);
-    if (inWin.length) return { amostras: inWin, aproximado: false };
-  }
-  // fallback: FC do mesmo dia (impreciso, mas evita "—" quando há dado próximo)
-  const sameDay = (hrDayRecs[r.data] || []).filter(v => v > 90);
-  return { amostras: sameDay, aproximado: sameDay.length > 0 };
-}
-
-// ── ACTIVITY TYPE CLASSIFIER ──
-// Prioridade: 1) coluna "arquivo" (tipo real vindo do Samsung/Health Sync,
-// ex: RUNNING, CIRCUIT_TRAINING, TYPE_0, WALKING) — nunca deduzir pela presença de km.
-// 2) fallback legado: label embutido em valor2 no formato "dur|LABEL|hr|hr".
-function activityRawType(r) {
-  const fromArquivo = String(r.arquivo || '').toUpperCase().trim();
-  // pastas do Drive (ex: "Health Sync Atividades/RUNNING...") contêm "/" — ainda é válido,
-  // pega o texto após a última barra se houver
-  const afterSlash = fromArquivo.includes('/') ? fromArquivo.split('/').pop() : fromArquivo;
-  if (afterSlash && afterSlash !== 'DESCONHECIDO') return afterSlash;
-  const parts = String(r.valor2 || '').split('|');
-  return (parts[1] || '').toUpperCase().trim();
-}
-function classifyActivity(tipoRaw) {
-  const t = String(tipoRaw||'').toLowerCase().trim();
-  if (!t || t === 'null' || t === 'desconhecido') return 'outros';
-  if (t.includes('run') || t === '1001' || t.includes('corrid')) return 'corrida';
-  if (t.includes('walk') || t.includes('caminhad')) return 'caminhada';
-  // FIX (22/07/2026): 'TRAINING' é o rótulo que o Health Sync passou a usar para
-  // sessões de força/circuito (antes era CIRCUIT_TRAINING) — sem este match, todo
-  // o CrossFit desde maio caía em "outros". Checado depois de run/walk, então
-  // não conflita com outras modalidades.
-  if (t.includes('circuit') || t.includes('crossfit') || t.includes('training') || t.includes('outro treino')
-    || t.includes('treino circ') || t === 'other' || t === 'outro' || t === '0'
-    || t === '10007' || t === '14001' || t === '11007' || t.startsWith('type_')
-    || t === 'functional' || t.includes('indoor')) return 'crossfit';
-  return 'outros';
-}
-
-// ── ACTIVITY SUB-TABS WIRING ──
-document.querySelectorAll('.act-tab').forEach(btn =>
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.act-tab').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.act-panel').forEach(p => p.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('act-' + btn.dataset.act).classList.add('active');
-  })
-);
-
-// ── FILTRO DE PERÍODO (dia/mês/ano/tudo) — aplica a todas as modalidades ──
-function populateActivityFilterOptions() {
-  const acts = S.data.records.filter(r => r.metrica === 'activity');
-  const dates = acts.map(r => parseDMY(r.data)).filter(Boolean);
-  if (!dates.length) return;
-
-  const years = [...new Set(dates.map(d => d.getFullYear()))].sort((a,b) => b-a);
-  const yearSel = document.getElementById('actFilterYear');
-  yearSel.innerHTML = years.map(y => `<option value="${y}">${y}</option>`).join('');
-
-  const monthNames = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-  const monthSel = document.getElementById('actFilterMonth');
-  monthSel.innerHTML = monthNames.map((m,i) => `<option value="${i}">${m}</option>`).join('');
-
-  const dayInput = document.getElementById('actFilterDay');
-  const maxD = new Date(arrMax(dates));
-  const minD = new Date(arrMin(dates));
-  dayInput.max = maxD.toISOString().split('T')[0];
-  dayInput.min = minD.toISOString().split('T')[0];
-  dayInput.value = maxD.toISOString().split('T')[0];
-}
-
-function onActFilterModeChange() {
-  const mode = document.getElementById('actFilterMode').value;
-  document.getElementById('actFilterYear').style.display  = (mode === 'year' || mode === 'month') ? 'inline-block' : 'none';
-  document.getElementById('actFilterMonth').style.display = (mode === 'month') ? 'inline-block' : 'none';
-  document.getElementById('actFilterDay').style.display   = (mode === 'day') ? 'inline-block' : 'none';
-  applyActivityFilter();
-}
-
-function getActivityDateFilter() {
-  const mode = document.getElementById('actFilterMode').value;
-  if (mode === 'all') return null;
-  if (mode === 'year') {
-    const y = +document.getElementById('actFilterYear').value;
-    return d => d && d.getFullYear() === y;
-  }
-  if (mode === 'month') {
-    const y = +document.getElementById('actFilterYear').value;
-    const m = +document.getElementById('actFilterMonth').value;
-    return d => d && d.getFullYear() === y && d.getMonth() === m;
-  }
-  if (mode === 'day') {
-    const val = document.getElementById('actFilterDay').value; // yyyy-mm-dd
-    if (!val) return null;
-    const [y,m,dd] = val.split('-').map(Number);
-    return d => d && d.getFullYear() === y && d.getMonth() === m-1 && d.getDate() === dd;
-  }
-  return null;
-}
-
-function applyActivityFilter() {
-  renderActivity();
-}
-
-function renderActivity() {
-  const sm = S.data.summary;
-  const filterFn = getActivityDateFilter();
-
-  let acts   = S.data.records.filter(r => r.metrica === 'activity');
-  let steps  = S.data.records.filter(r => r.metrica === 'steps');
-  let hrRecs = S.data.records.filter(r => r.metrica === 'heart_rate');
-
-  if (filterFn) {
-    acts   = acts.filter(r => filterFn(parseDMY(r.data)));
-    steps  = steps.filter(r => filterFn(parseDMY(r.data)));
-    hrRecs = hrRecs.filter(r => filterFn(parseDMY(r.data)));
-    document.getElementById('actFilterCount').textContent = `${acts.length} atividades no período`;
-  } else {
-    document.getElementById('actFilterCount').textContent = '';
-  }
-
-  const has = steps.length || acts.length;
-  document.getElementById('actEmpty').style.display = has ? 'none' : 'block';
-  document.getElementById('actContent').style.display = has ? 'block' : 'none';
-  if (!has) return;
-
-  // classifica cada atividade uma única vez, usando o tipo real (não a unidade/km)
-  const withType = acts.map(r => ({ r, tipo: classifyActivity(activityRawType(r)) }));
-  const corridas = withType.filter(x => x.tipo === 'corrida').map(x => x.r);
-  const cfs      = withType.filter(x => x.tipo === 'crossfit').map(x => x.r);
-  const outros   = withType.filter(x => x.tipo === 'outros' || x.tipo === 'caminhada').map(x => x.r);
-
-  renderActGeral(sm, steps, acts, corridas, cfs);
-  renderActCorrida(corridas, hrRecs);
-  renderActCrossfit(cfs, hrRecs);
-  renderActOutros(outros);
-}
-
-// ── GERAL ──
-function renderActGeral(sm, steps, acts, corridas, cfs) {
-  const byDay = {};
-  steps.forEach(r => { byDay[r.data] = (byDay[r.data]||0) + +r.valor; });
-  const dVals = Object.values(byDay);
-  const dKeys = Object.keys(byDay);
-
-  document.getElementById('acSteps').textContent = dVals.length
-    ? Number(Math.round(dVals.reduce((a,b)=>a+b,0)/dVals.length)).toLocaleString('pt-BR') : '—';
-  document.getElementById('acStepsSub').textContent = dKeys.length + ' dias';
-  document.getElementById('acDays10k').textContent = dVals.filter(v=>v>=10000).length;
-  document.getElementById('acTotal').textContent = acts.length;
-  document.getElementById('acTotalSub').textContent =
-    `${corridas.length} corridas · ${cfs.length} CrossFit`;
-
-  const kmTotal = acts.map(r => parseFloat(r.valor)).filter(v => !isNaN(v) && v > 0).reduce((a,b)=>a+b,0);
-  document.getElementById('acKm').innerHTML = kmTotal.toFixed(1) + '<span class="stat-u">km</span>';
-
-  // FC segmentada repouso vs treino — usa o resumo do backend quando sem filtro (mais completo,
-  // cobre todo o histórico), ou recalcula localmente com janelas reais quando há filtro de período.
-  const filterActive = document.getElementById('actFilterMode').value !== 'all';
-  if (!filterActive && sm['heart_rate_repouso.media']) {
-    document.getElementById('acHRrest').innerHTML = Math.round(sm['heart_rate_repouso.media']) + '<span class="stat-u">bpm</span>';
-    document.getElementById('acHRrestSub').textContent = `n=${sm['heart_rate_repouso.n']||0} · faixa ${sm['heart_rate_repouso.min']||'—'}-${sm['heart_rate_repouso.max']||'—'}`;
-    document.getElementById('acHRtrain').innerHTML = Math.round(sm['heart_rate_treino.media']) + '<span class="stat-u">bpm</span>';
-    document.getElementById('acHRtrainSub').textContent = `n=${sm['heart_rate_treino.n']||0} · máx ${sm['heart_rate_treino.max']||'—'}`;
-  } else {
-    const allHR = S.data.records.filter(r => r.metrica === 'heart_rate' && +r.valor > 30 && +r.valor < 220);
-    const hrInPeriod = document.getElementById('actFilterMode').value === 'all'
-      ? allHR
-      : allHR.filter(r => getActivityDateFilter()(parseDMY(r.data)));
-    const hrTsAll = hrInPeriod.map(r => ({ ts: parseDMYTime(`${r.data} ${r.hora||'00:00'}`), v: +r.valor })).filter(x=>x.ts);
-    const windows = acts.map(r => {
-      const start = parseDMYTime(`${r.data} ${r.hora||'00:00'}`);
-      const durSec = parseFloat(String(r.valor2||'').split('|')[0]) || 3600;
-      return start ? { start, end: start + Math.max(durSec,300)*1000 } : null;
-    }).filter(Boolean);
-    const treino = [], repouso = [];
-    for (const h of hrTsAll) {
-      const inTraining = windows.some(w => h.ts >= w.start && h.ts <= w.end);
-      (inTraining ? treino : repouso).push(h.v);
-    }
-    if (repouso.length) {
-      document.getElementById('acHRrest').innerHTML = Math.round(repouso.reduce((a,b)=>a+b,0)/repouso.length) + '<span class="stat-u">bpm</span>';
-      document.getElementById('acHRrestSub').textContent = `n=${repouso.length} · faixa ${arrMin(repouso)}-${arrMax(repouso)}`;
-    } else { document.getElementById('acHRrest').innerHTML = '—'; document.getElementById('acHRrestSub').textContent = 'sem dados no período'; }
-    if (treino.length) {
-      document.getElementById('acHRtrain').innerHTML = Math.round(treino.reduce((a,b)=>a+b,0)/treino.length) + '<span class="stat-u">bpm</span>';
-      document.getElementById('acHRtrainSub').textContent = `n=${treino.length} · máx ${arrMax(treino)}`;
-    } else { document.getElementById('acHRtrain').innerHTML = '—'; document.getElementById('acHRtrainSub').textContent = 'sem dados no período'; }
-  }
-
-  // Passos chart
-  destroy('chartSteps');
-  if (dKeys.length) {
-    const sorted = dKeys.sort();
-    const sVals = sorted.map(d => byDay[d]);
-    document.getElementById('stepsMeta').textContent = sorted.length + ' dias';
-    mkChart('chartSteps', 'bar', sorted.slice(-60), [{
-      label: 'Passos', data: sVals.slice(-60),
-      backgroundColor: sVals.slice(-60).map(v => v<6000?'#D92D20':v<10000?'#F79009':'#0E9384'),
-      borderRadius: 4
-    }]);
-  }
-
-  // Tipos (donut)
-  destroy('chartActTypes');
-  if (acts.length) {
-    const ctx = document.getElementById('chartActTypes').getContext('2d');
-    S.charts.chartActTypes = new Chart(ctx, {
-      type: 'doughnut',
-      data: { labels: ['Corrida','CrossFit','Outros'],
-        datasets: [{ data: [corridas.length, cfs.length, acts.length-corridas.length-cfs.length],
-          backgroundColor: ['#175CD3','#D92D20','#94A3B8'], borderWidth: 2, borderColor:'#fff' }]},
-      options: { plugins: { legend: { position:'bottom', labels: { color:'#64748B', font:{family:'Inter',size:11}, boxWidth:10, padding:10 }}}}
-    });
-  }
-
-  // Frequência semanal
-  destroy('chartActWeek');
-  if (acts.length) {
-    const byWeek = {};
-    acts.forEach(r => {
-      const d = parseDMY(r.data);
-      if (!d) return;
-      const mon = mondayOf(d);
-      byWeek[mon] = (byWeek[mon]||0) + 1;
-    });
-    const wks = Object.keys(byWeek).sort().slice(-16);
-    document.getElementById('actWeekMeta').textContent = 'últimas ' + wks.length + ' semanas';
-    mkChart('chartActWeek', 'bar', wks, [{
-      label: 'Sessões/semana', data: wks.map(w=>byWeek[w]),
-      backgroundColor: '#0E9384', borderRadius: 4
-    }]);
-  }
-}
-
-// ── CORRIDA ──
-function renderActCorrida(corridas, hrRecs) {
-  const isEmpty = corridas.length === 0;
-  document.getElementById('runEmpty').style.display = isEmpty ? 'block' : 'none';
-  if (isEmpty) return;
-
-  const kms = corridas.map(r => parseFloat(r.valor)).filter(v => !isNaN(v) && v > 0);
-  const durs = corridas.map(r => parseFloat(r.valor2)).filter(v => !isNaN(v) && v > 0); // segundos
-  const totalKm = kms.reduce((a,b)=>a+b,0);
-  const avgKm = kms.length ? totalKm/kms.length : 0;
-
-  // Pace: tempo(s) / km
-  const paces = corridas.map(r => {
-    const km = parseFloat(r.valor), dur = parseFloat(r.valor2);
-    if (!km || !dur || km < 0.1) return null;
-    return (dur/60) / km; // min/km
-  }).filter(Boolean);
-  const avgPace = paces.length ? paces.reduce((a,b)=>a+b,0)/paces.length : 0;
-
-  const totalSecs = durs.reduce((a,b)=>a+b,0);
-
-  document.getElementById('runCount').textContent = corridas.length;
-  document.getElementById('runKm').innerHTML = totalKm.toFixed(1) + '<span class="stat-u">km</span>';
-  document.getElementById('runKmAvg').innerHTML = avgKm.toFixed(2) + '<span class="stat-u">km</span>';
-  document.getElementById('runPace').innerHTML = (avgPace ? fmtPace(avgPace) : '—') + '<span class="stat-u">min/km</span>';
-  document.getElementById('runTime').textContent = fmtDuration(totalSecs);
-
-  // FC durante corridas — cruzamento pela JANELA de cada sessão (com tolerância
-  // e fallback ao dia). Aproximado: ver nota em hrSamplesForSession.
-  const hrTsRun = hrRecs.map(r => ({ ts: parseDMYTime(`${r.data} ${r.hora||'00:00'}`), v: +r.valor })).filter(x => x.ts && x.v > 30);
-  const hrDayRun = {};
-  hrRecs.forEach(r => { (hrDayRun[r.data] = hrDayRun[r.data] || []).push(+r.valor); });
-  let runHRs = [], runHRaprox = false;
-  for (const r of corridas) {
-    const { amostras, aproximado } = hrSamplesForSession(r, hrTsRun, hrDayRun);
-    if (amostras.length) { for (let i=0;i<amostras.length;i++) runHRs.push(amostras[i]); if (aproximado) runHRaprox = true; }
-  }
-  runHRs = runHRs.filter(v => v > 100); // corrida: descarta leituras de repouso residuais
-  document.getElementById('runHR').innerHTML = (runHRs.length
-    ? Math.round(runHRs.reduce((a,b)=>a+b,0)/runHRs.length) + (runHRaprox ? '<span class="stat-u">bpm ~</span>' : '<span class="stat-u">bpm</span>')
-    : '—<span class="stat-u">bpm</span>');
-
-  // Distância por sessão
-  destroy('chartRunKm');
-  const sorted = corridas.slice().sort((a,b) => parseDMY(a.data)-parseDMY(b.data));
-  document.getElementById('runChartMeta').textContent = corridas.length + ' sessões';
-  mkChart('chartRunKm', 'bar', sorted.map(r=>r.data), [{
-    label: 'Distância (km)', data: sorted.map(r=>+r.valor||0),
-    backgroundColor: sorted.map(r => (+r.valor||0)<3?'#F79009':(+r.valor||0)<6?'#175CD3':'#0E9384'),
-    borderRadius: 4
-  }]);
-
-  // Distribuição donut
-  destroy('chartRunDist');
-  const ctx2 = document.getElementById('chartRunDist').getContext('2d');
-  S.charts.chartRunDist = new Chart(ctx2, {
-    type: 'doughnut',
-    data: { labels:['<3km','3–5km','5–8km','>8km'], datasets:[{
-      data:[kms.filter(v=>v<3).length,kms.filter(v=>v>=3&&v<5).length,kms.filter(v=>v>=5&&v<8).length,kms.filter(v=>v>=8).length],
-      backgroundColor:['#94A3B8','#175CD3','#0E9384','#067647'], borderWidth:2, borderColor:'#fff'
-    }]},
-    options:{plugins:{legend:{position:'bottom',labels:{color:'#64748B',font:{family:'Inter',size:11},boxWidth:10,padding:10}}}}
+    document.querySelectorAll('section[id^="tab-"]').forEach(function (s) { s.hidden = true; });
+    document.getElementById('tab-' + b.dataset.t).hidden = false;
+    if (b.dataset.t === 'meds') carregarMeds();
   });
-
-  // FC chart
-  destroy('chartRunHR');
-  if (runHRs.length) {
-    mkChart('chartRunHR', 'bar', Array.from({length:runHRs.length},(_,i)=>String(i+1)), [{
-      label:'FC (bpm)', data: runHRs,
-      backgroundColor: runHRs.map(v=>v>180?'#D92D20':v>165?'#F79009':'#175CD3'), borderRadius:4
-    }]);
-  }
-
-  // Tabela
-  const tbody = document.getElementById('runTable'); tbody.innerHTML='';
-  for (const r of sorted.slice().reverse().slice(0,30)) {
-    const km = parseFloat(r.valor)||0;
-    const dur = parseFloat(r.valor2)||0;
-    const pace = (km>0.1&&dur>0) ? fmtPace((dur/60)/km) : '—';
-    tbody.insertAdjacentHTML('beforeend',
-      `<tr><td>${r.data}</td><td style="font-weight:600">${km.toFixed(2)} km</td><td>${fmtDuration(dur)}</td><td>${pace} min/km</td><td>—</td></tr>`);
-  }
-}
-
-// ── CROSSFIT ──
-function renderActCrossfit(cfs, hrRecs) {
-  const isEmpty = cfs.length === 0;
-  document.getElementById('cfEmpty').style.display = isEmpty ? 'block' : 'none';
-  if (isEmpty) return;
-
-  const durs = cfs.map(r=>parseFloat(String(r.valor2||'').split('|')[0])).filter(v=>!isNaN(v)&&v>0);
-  const avgDur = durs.length ? durs.reduce((a,b)=>a+b,0)/durs.length : 0;
-
-  // Sessões por semana
-  const byWeek = {};
-  cfs.forEach(r => { const d=parseDMY(r.data); if(!d) return; const m=mondayOf(d); byWeek[m]=(byWeek[m]||0)+1; });
-  const wkVals = Object.values(byWeek);
-  const avgPerWeek = wkVals.length ? (wkVals.reduce((a,b)=>a+b,0)/wkVals.length).toFixed(1) : '—';
-
-  // ── FC por sessão: cruzamento pela janela do treino com tolerância + fallback ──
-  // (helper compartilhada hrSamplesForSession — aproximação do plano A). A FC fina
-  // real da sessão está nos .tcx, ainda não importados; aqui usamos a FC solta.
-  const hrTsRecs = hrRecs.map(r => ({ ts: parseDMYTime(`${r.data} ${r.hora||'00:00'}`), v: +r.valor })).filter(x => x.ts && x.v > 30);
-  const hrDayCf = {};
-  hrRecs.forEach(r => { (hrDayCf[r.data] = hrDayCf[r.data] || []).push(+r.valor); });
-
-  const sessionAvgHR = []; // FC média de cada sessão individual (para o gráfico)
-  let allCfHRs = [], cfHRaprox = false;
-  for (const r of cfs) {
-    const start = parseDMYTime(`${r.data} ${r.hora||'00:00'}`);
-    const { amostras, aproximado } = hrSamplesForSession(r, hrTsRecs, hrDayCf);
-    if (amostras.length) {
-      sessionAvgHR.push({ data: r.data, hora: r.hora, avg: amostras.reduce((a,b)=>a+b,0)/amostras.length, max: arrMax(amostras), ts: start || 0, aprox: aproximado });
-      for (let i=0;i<amostras.length;i++) allCfHRs.push(amostras[i]);
-      if (aproximado) cfHRaprox = true;
-    }
-  }
-  const cfHRmax = allCfHRs.length ? arrMax(allCfHRs) : 0;
-  const cfHRavg = allCfHRs.length ? Math.round(allCfHRs.reduce((a,b)=>a+b,0)/allCfHRs.length) : 0;
-
-  // Streak atual
-  const cfDatesSorted = [...new Set(cfs.map(r=>r.data))].sort().reverse();
-  let streak = 0;
-  if (cfDatesSorted.length) {
-    const today = new Date(); today.setHours(0,0,0,0);
-    let prev = null;
-    for (const ds of cfDatesSorted) {
-      const d = parseDMY(ds); if(!d) break;
-      if (!prev) { const diff=(today-d)/(86400000); if(diff>3) break; prev=d; streak=1; continue; }
-      if ((prev-d)/(86400000)<=7) { streak++; prev=d; } else break;
-    }
-  }
-
-  document.getElementById('cfCount').textContent = cfs.length;
-  document.getElementById('cfPerWeek').textContent = avgPerWeek;
-  const cfHRunit = cfHRaprox ? '<span class="stat-u">bpm ~</span>' : '<span class="stat-u">bpm</span>';
-  document.getElementById('cfHR').innerHTML = (cfHRavg||'—') + (cfHRavg ? cfHRunit : '<span class="stat-u">bpm</span>');
-  document.getElementById('cfHRmax').innerHTML = (cfHRmax||'—') + (cfHRmax ? cfHRunit : '<span class="stat-u">bpm</span>');
-  document.getElementById('cfDur').innerHTML = (avgDur?Math.round(avgDur/60):'—') + '<span class="stat-u">min</span>';
-  document.getElementById('cfStreak').innerHTML = streak + '<span class="stat-u">semanas</span>';
-
-  // ── FC média das sessões (PRIMEIRO gráfico, como pedido) ──
-  destroy('chartCFhr');
-  const last30 = sessionAvgHR.slice().sort((a,b)=>a.ts-b.ts).slice(-30);
-  if (last30.length) {
-    mkChart('chartCFhr','bar', last30.map(s=>s.data), [{
-      label:'FC média da sessão (bpm)', data: last30.map(s=>Math.round(s.avg)),
-      backgroundColor: last30.map(s=>s.avg>165?'#D92D20':s.avg>145?'#F79009':'#175CD3'),
-      borderRadius:4
-    }]);
-  } else {
-    const metaEl = document.querySelector('#tab-activity #act-crossfit .card-hdr .card-m');
-    if (metaEl) metaEl.textContent = 'sem dados de FC nas janelas de treino';
-  }
-
-  // Sessões por semana chart
-  destroy('chartCFweek');
-  const wks = Object.keys(byWeek).sort().slice(-20);
-  document.getElementById('cfChartMeta').textContent = wks.length + ' semanas';
-  mkChart('chartCFweek','bar',wks,[{
-    label:'Sessões',data:wks.map(w=>byWeek[w]),
-    backgroundColor: wks.map(w=>byWeek[w]>=4?'#0E9384':byWeek[w]>=3?'#175CD3':'#94A3B8'),
-    borderRadius:4
-  }],{y:{min:0,max:7,ticks:{stepSize:1}}});
-
-  // Dias da semana
-  destroy('chartCFdays');
-  const diasNome = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
-  const byDow = [0,0,0,0,0,0,0];
-  cfs.forEach(r => { const d=parseDMY(r.data); if(d) byDow[d.getDay()]++; });
-  const ctx3 = document.getElementById('chartCFdays').getContext('2d');
-  S.charts.chartCFdays = new Chart(ctx3,{type:'bar',data:{labels:diasNome,datasets:[{
-    label:'Treinos', data:byDow,
-    backgroundColor:byDow.map(v=>v===Math.max(...byDow)?'#D92D20':'#175CD3'), borderRadius:4
-  }]},options:{...baseOpts(),plugins:{legend:{display:false}}}});
-
-  // Tabela
-  const sessionHRMap = {};
-  sessionAvgHR.forEach(s => { sessionHRMap[s.data+'|'+(s.hora||'')] = s; });
-  const tbody=document.getElementById('cfTable'); tbody.innerHTML='';
-  const tipoLabel = t => {
-    const n=String(t||'').toLowerCase();
-    if(n.includes('circuit')) return 'Circuit Training';
-    if(n.includes('other')||n==='outro') return 'Outro Treino';
-    if(n==='0') return 'Treino (tipo 0)';
-    if(n==='10007') return 'Indoor (10007)';
-    if(n==='14001'||n==='11007') return 'Funcional';
-    return t||'—';
-  };
-  for (const r of cfs.slice().sort((a,b)=>parseDMY(b.data)-parseDMY(a.data)).slice(0,50)) {
-    const durRaw = String(r.valor2||'').split('|')[0];
-    const dur = parseFloat(durRaw)||0;
-    const sess = sessionHRMap[r.data+'|'+(r.hora||'')];
-    const fcStr = sess ? `${Math.round(sess.avg)} bpm (máx ${sess.max})` : '—';
-    tbody.insertAdjacentHTML('beforeend',
-      `<tr><td>${r.data}</td><td>${r.hora||'—'}</td><td style="color:var(--muted)">${tipoLabel(activityRawType(r))}</td><td>${dur?fmtDuration(dur):'—'}</td><td>${fcStr}</td></tr>`);
-  }
-}
-
-// ── OUTROS ──
-function renderActOutros(outros) {
-  document.getElementById('otEmpty').style.display = outros.length?'none':'block';
-  document.getElementById('otCount').textContent = outros.length;
-  const kms=outros.map(r=>parseFloat(r.valor)).filter(v=>!isNaN(v)&&v>0);
-  document.getElementById('otKm').innerHTML=(kms.reduce((a,b)=>a+b,0)).toFixed(1)+'<span class="stat-u">km</span>';
-  const tbody=document.getElementById('otTable'); tbody.innerHTML='';
-  for(const r of outros.slice().sort((a,b)=>parseDMY(b.data)-parseDMY(a.data)).slice(0,50)){
-    const durRaw = String(r.valor2||'').split('|')[0];
-    const dur = parseFloat(durRaw)||0;
-    tbody.insertAdjacentHTML('beforeend',`<tr><td>${r.data}</td><td style="color:var(--muted)">${activityRawType(r)||'—'}</td><td>${parseFloat(r.valor)>0?parseFloat(r.valor).toFixed(2)+' km':'—'}</td><td>${dur?fmtDuration(dur):'—'}</td></tr>`);
-  }
-}
-
-// ── DATE HELPERS ──
-function parseDMY(str) {
-  if (!str) return null;
-  // dd/MM/yyyy
-  const m = str.match(/(\d{2})\/(\d{2})\/(\d{4})/);
-  if (m) return new Date(+m[3],+m[2]-1,+m[1]);
-  const d = new Date(str);
-  return isNaN(d)?null:d;
-}
-// Retorna timestamp (ms) a partir de "dd/MM/yyyy HH:mm"
-function parseDMYTime(str) {
-  if (!str) return null;
-  const m = str.match(/(\d{2})\/(\d{2})\/(\d{4})\s+(\d{1,2}):(\d{2})/);
-  if (!m) { const d = parseDMY(str); return d ? d.getTime() : null; }
-  return new Date(+m[3],+m[2]-1,+m[1],+m[4],+m[5]).getTime();
-}
-function mondayOf(d) {
-  const day=d.getDay(), diff=d.getDate()-day+(day===0?-6:1);
-  const mon=new Date(d); mon.setDate(diff); mon.setHours(0,0,0,0);
-  return mon.toISOString().split('T')[0];
-}
-function fmtPace(minKm) {
-  const m=Math.floor(minKm), s=Math.round((minKm-m)*60);
-  return `${m}:${String(s).padStart(2,'0')}`;
-}
-function fmtDuration(secs) {
-  if(!secs||isNaN(secs)) return '—';
-  // valor2 pode vir em segundos ou minutos dependendo do Health Sync
-  const s = secs > 3600*24 ? secs/1000 : secs; // ms → s se muito grande
-  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60);
-  return h>0 ? `${h}h${String(m).padStart(2,'0')}min` : `${m}min`;
-}
-
-// ── BP class (AHA) ──
-function bpClass(sys, dia) {
-  if (sys < 120 && dia < 80) return { label:'Normal', tag:'tag-normal', c:'c-green' };
-  if (sys < 130 && dia < 80) return { label:'Elevada', tag:'tag-elevated', c:'c-amber' };
-  if (sys < 140 || dia < 90) return { label:'Hipertensão I', tag:'tag-ht1', c:'c-amber' };
-  return { label:'Hipertensão II', tag:'tag-ht2', c:'c-red' };
-}
-
-// ── chart helpers ──
-const baseOpts = (extraScales={}) => ({
-  responsive: true, animation: { duration: 400 },
-  plugins: { legend: { labels: { color:'#64748B', font:{ family:'Inter', size:11 }, boxWidth:10 }}},
-  scales: {
-    x: { ticks: { color:'#94A3B8', font:{ family:'IBM Plex Mono', size:9 }, maxTicksLimit: 10 }, grid: { color:'#EEF2F6' }, ...(extraScales.x||{}) },
-    y: { ticks: { color:'#94A3B8', font:{ family:'IBM Plex Mono', size:10 } }, grid: { color:'#EEF2F6' }, ...(extraScales.y||{}) }
-  }
 });
-function mkChart(id, type, labels, datasets, extraScales) {
-  const ctx = document.getElementById(id).getContext('2d');
-  S.charts[id] = new Chart(ctx, { type, data: { labels, datasets }, options: baseOpts(extraScales) });
-}
-function destroy(id) { if (S.charts[id]) { S.charts[id].destroy(); delete S.charts[id]; } }
-function setPill(id, text, cls) { const el = document.getElementById(id); el.className = 'pill ' + cls; el.textContent = text; }
 
-// ═══ MEDICAMENTOS ═══
-const MedsState = { list: [], pendingAction: null };
-
-function saveMedsConfig() {
-  const url = document.getElementById('medsWebAppUrl').value.trim();
-  const token = document.getElementById('medsApiToken').value.trim();
-  if (url) localStorage.setItem('hm_meds_url', url); else localStorage.removeItem('hm_meds_url');
-  if (token) localStorage.setItem('hm_meds_token', token); else localStorage.removeItem('hm_meds_token');
-  showAlert('Configuração de Medicamentos salva.', 'info');
-  loadMedicamentos();
-}
-
-function medsConfigured() {
-  return !!(localStorage.getItem('hm_meds_url') && localStorage.getItem('hm_meds_token'));
-}
-
-// Todas as chamadas ao Web App usam POST com corpo JSON (evita limite de tamanho de URL
-// e mantém o token fora da query string visível em logs).
-async function callMedsApi(action, extra) {
-  const url = localStorage.getItem('hm_meds_url');
-  const token = localStorage.getItem('hm_meds_token');
-  if (!url || !token) throw new Error('Configure a URL do Web App e o token em Ajustes.');
-  const resp = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' }, // evita preflight CORS; Apps Script lê postData.contents igual
-    body: JSON.stringify({ action, token, ...extra })
-  });
-  if (!resp.ok) throw new Error('HTTP ' + resp.status);
-  const data = await resp.json();
-  if (!data.ok) throw new Error(data.erro || 'Erro desconhecido do Web App.');
-  return data;
-}
-
-async function loadMedicamentos() {
-  if (!medsConfigured()) {
-    document.getElementById('medsEmpty').style.display = 'block';
-    document.getElementById('medsContent').style.display = 'none';
-    return;
-  }
+/* ── leitura da aba Resumo via gviz ── */
+async function carregar() {
+  const url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=out:json&sheet=Resumo';
   try {
-    const data = await callMedsApi('listar_medicamentos', {});
-    MedsState.list = data.medicamentos || [];
-    document.getElementById('medsEmpty').style.display = 'none';
-    document.getElementById('medsContent').style.display = 'block';
-    renderMedicamentos();
-  } catch (e) {
-    document.getElementById('medsEmpty').style.display = 'block';
-    document.getElementById('medsContent').style.display = 'none';
-    document.getElementById('medsEmpty').querySelector('p').innerHTML =
-      'Não foi possível carregar os medicamentos: ' + e.message + '<br>Confira a URL e o token em <strong>Ajustes</strong>.';
-  }
-}
-
-function medStatus(med) {
-  // sem frequência definida → é um "contínuo/diário", não entra na grade periódica
-  if (!med.frequencia_dias) return null;
-  if (!med.proxima_aplicacao) return { cls: 'none', label: 'Sem registro', diffDays: null };
-  const hoje = new Date(); hoje.setHours(0,0,0,0);
-  const prox = new Date(med.proxima_aplicacao + 'T00:00:00');
-  const diffDays = Math.round((prox - hoje) / 86400000);
-  if (diffDays < 0)  return { cls: 'late', label: `Atrasado ${Math.abs(diffDays)}d`, diffDays };
-  if (diffDays <= (window.__CONFIG_LEMBRETE_DIAS || 3)) return { cls: 'soon', label: diffDays===0 ? 'Hoje' : `Em ${diffDays}d`, diffDays };
-  return { cls: 'ok', label: `Em ${diffDays}d`, diffDays };
-}
-
-function renderMedicamentos() {
-  const periodicos = MedsState.list.filter(m => m.frequencia_dias);
-  const diarios    = MedsState.list.filter(m => !m.frequencia_dias);
-
-  document.getElementById('medsPeriodicMeta').textContent = periodicos.length + ' medicamento(s)';
-
-  const grid = document.getElementById('medsPeriodicGrid');
-  grid.innerHTML = '';
-  for (const med of periodicos) {
-    const st = medStatus(med);
-    const cardCls = st.cls === 'late' ? 'overdue' : (st.cls === 'soon' ? 'due-soon' : '');
-    const badgeCls = st.cls;
-    const div = document.createElement('div');
-    div.className = 'med-card ' + cardCls;
-    div.innerHTML = `
-      <div class="med-hdr">
-        <div><div class="med-name">${med.nome}</div><div class="med-dose">${med.dose||''} ${med.via?'· '+med.via:''} · a cada ${med.frequencia_dias}d</div></div>
-        <span class="med-badge ${badgeCls}">${st.label}</span>
-      </div>
-      <div class="med-dates">
-        <div class="med-date-item"><span class="med-date-l">Última</span><span class="med-date-v">${med.ultima_aplicacao ? fmtISOToBR(med.ultima_aplicacao) : '—'}</span></div>
-        <div class="med-date-item"><span class="med-date-l">Próxima</span><span class="med-date-v">${med.proxima_aplicacao ? fmtISOToBR(med.proxima_aplicacao) : '—'}</span></div>
-      </div>
-      <div class="med-actions">
-        <button class="btn btn-primary" style="font-size:.72rem;padding:.45rem .8rem" onclick="openRegisterModal('${escapeAttr(med.nome)}', ${med.frequencia_dias}, '${escapeAttr(med.dose||'')}', '${escapeAttr(med.via||'')}')">✓ Registrar aplicação hoje</button>
-        ${med.proxima_aplicacao ? `<button class="btn btn-ghost" style="font-size:.72rem;padding:.45rem .8rem" onclick="openCalendarModal('${escapeAttr(med.nome)}', '${escapeAttr(med.dose||'')}', '${escapeAttr(med.via||'')}', '${med.proxima_aplicacao}')">📅 Criar lembrete</button>` : ''}
-      </div>`;
-    grid.appendChild(div);
-  }
-
-  const dailyList = document.getElementById('medsDailyList');
-  dailyList.innerHTML = '';
-  for (const med of diarios) {
-    dailyList.insertAdjacentHTML('beforeend',
-      `<div class="med-daily-item"><span class="nm">${med.nome}<span class="ds">${med.dose||''} ${med.via?'· '+med.via:''}</span></span></div>`);
-  }
-}
-
-function escapeAttr(s) { return String(s).replace(/'/g, "\\'"); }
-function fmtISOToBR(iso) { const [y,m,d] = iso.split('-'); return `${d}/${m}/${y}`; }
-
-// ── Modal: registrar aplicação de hoje ──
-function openRegisterModal(nome, freqDias, dose, via) {
-  MedsState.pendingAction = { type: 'registrar', nome, freqDias, dose, via };
-  const hojeISO = new Date().toISOString().split('T')[0];
-
-  document.getElementById('medModalTitle').textContent = 'Registrar aplicação — ' + nome;
-  document.getElementById('medModalDateRow').style.display = 'block';
-  const dateInput = document.getElementById('medModalDateInput');
-  dateInput.value = hojeISO;
-  dateInput.max = hojeISO; // não faz sentido registrar aplicação no futuro
-
-  updateRegisterModalBody(nome, freqDias, hojeISO);
-  document.getElementById('medModalConfirmBtn').textContent = 'Confirmar aplicação';
-  document.getElementById('medModalBackdrop').style.display = 'flex';
-}
-
-function onMedModalDateChange() {
-  const action = MedsState.pendingAction;
-  if (!action || action.type !== 'registrar') return;
-  const dataISO = document.getElementById('medModalDateInput').value;
-  if (!dataISO) return;
-  updateRegisterModalBody(action.nome, action.freqDias, dataISO);
-}
-
-function updateRegisterModalBody(nome, freqDias, dataISO) {
-  const hojeISO = new Date().toISOString().split('T')[0];
-  const isPast = dataISO < hojeISO;
-  const [y,m,d] = dataISO.split('-').map(Number);
-  const proximaCalc = new Date(y, m-1, d + Number(freqDias)).toISOString().split('T')[0];
-
-  document.getElementById('medModalBody').innerHTML =
-    (isPast
-      ? `Registrar aplicação de <strong>${nome}</strong> em <strong>${fmtISOToBR(dataISO)}</strong> (data retroativa — ajuste o campo abaixo se quiser mudar).<br><br>`
-      : `Confirma que a aplicação de <strong>${nome}</strong> foi feita em <strong>${fmtISOToBR(dataISO)}</strong>?<br><br>`) +
-    `A próxima aplicação será recalculada para <strong>${fmtISOToBR(proximaCalc)}</strong> (a cada ${freqDias} dias a partir da data informada).<br><br>` +
-    `Depois de confirmar, você poderá criar o lembrete no Google Calendar em um segundo passo.`;
-}
-
-// ── Modal: criar lembrete no Calendar para uma próxima aplicação já calculada ──
-function openCalendarModal(nome, dose, via, proximaISO) {
-  MedsState.pendingAction = { type: 'calendar', nome, dose, via, proximaISO };
-  document.getElementById('medModalDateRow').style.display = 'none';
-  document.getElementById('medModalTitle').textContent = 'Criar lembrete no Calendar';
-  document.getElementById('medModalBody').innerHTML =
-    `Criar um evento no seu Google Calendar para <strong>${nome}</strong> em <strong>${fmtISOToBR(proximaISO)}</strong>, ` +
-    `com lembrete 3 dias antes?`;
-  document.getElementById('medModalConfirmBtn').textContent = 'Criar lembrete';
-  document.getElementById('medModalBackdrop').style.display = 'flex';
-}
-
-function closeMedModal() {
-  document.getElementById('medModalBackdrop').style.display = 'none';
-  document.getElementById('medModalDateRow').style.display = 'none';
-  MedsState.pendingAction = null;
-}
-
-async function confirmMedModalAction() {
-  const action = MedsState.pendingAction;
-  if (!action) return;
-  const btn = document.getElementById('medModalConfirmBtn');
-  btn.disabled = true; const originalText = btn.textContent; btn.textContent = 'Aguarde…';
-
-  try {
-    if (action.type === 'registrar') {
-      const dataISO = document.getElementById('medModalDateInput').value || null;
-      const result = await callMedsApi('registrar_aplicacao', { nome: action.nome, data: dataISO });
-      closeMedModal();
-      const dataLabel = dataISO ? fmtISOToBR(dataISO) : 'hoje';
-      showAlert(`✓ Aplicação de ${action.nome} registrada em ${dataLabel}. Próxima: ${result.proxima_aplicacao ? fmtISOToBR(result.proxima_aplicacao) : '—'}.`, 'info');
-      await loadMedicamentos();
-      // Oferece imediatamente a criação do lembrete para a nova data calculada
-      if (result.proxima_aplicacao) {
-        setTimeout(() => openCalendarModal(action.nome, action.dose, action.via, result.proxima_aplicacao), 400);
-      }
-    } else if (action.type === 'calendar') {
-      const result = await callMedsApi('criar_lembrete_calendar', {
-        nome: action.nome, dose: action.dose, via: action.via, proxima_aplicacao: action.proximaISO
-      });
-      closeMedModal();
-      showAlert(`✓ Lembrete criado no Google Calendar para ${fmtISOToBR(result.data)}.`, 'info');
+    const resp = await fetch(url);
+    const txt  = await resp.text();
+    const m = txt.match(/setResponse\(([\s\S]*)\);?\s*$/);
+    if (!m) throw new Error('resposta inesperada da planilha');
+    const json = JSON.parse(m[1]);
+    for (const row of json.table.rows) {
+      const k = row.c[0] && row.c[0].v;
+      const v = row.c[1] && row.c[1].v;
+      if (k && k !== 'chave') R[String(k)] = v;
     }
+    pintar();
   } catch (e) {
-    showAlert('Erro: ' + e.message, 'err');
-  } finally {
-    btn.disabled = false; btn.textContent = originalText;
+    const p = document.getElementById('pillSync');
+    p.textContent = 'sem conexão';
+    p.className = 'pill err';
+    document.querySelectorAll('.empty').forEach(function (el) {
+      el.innerHTML = '<b>Não foi possível carregar</b>Confira se a planilha está compartilhada como “qualquer pessoa com o link”.';
+    });
   }
 }
 
-// ═══ ANÁLISE IA ═══
-function saveApiKey() {
-  const k = document.getElementById('apiKey').value.trim();
-  if (k) { localStorage.setItem('hm_api_key', k); showAlert('Chave salva neste aparelho.', 'info'); }
-  else { localStorage.removeItem('hm_api_key'); showAlert('Chave removida.', 'info'); }
-  updateAiHint();
+function n(k, casas) {
+  const v = R[k];
+  if (v === undefined || v === null || v === '') return null;
+  const f = parseFloat(v);
+  if (isNaN(f)) return v;
+  return casas === undefined ? f : f.toFixed(casas);
+}
+function j(k) { try { return JSON.parse(R[k] || '[]'); } catch (e) { return []; } }
+function set(id, v, u) {
+  document.getElementById(id).innerHTML = v + (u ? '<span class="u">' + u + '</span>' : '');
 }
 
-function updateAiHint() {
-  const has = !!localStorage.getItem('hm_api_key');
-  document.getElementById('aiModeHint').innerHTML = has
-    ? '✓ Chave de API configurada — a análise roda direto no app.'
-    : 'Sem chave de API configurada — use <strong>"Copiar prompt"</strong> e cole no app do Claude (grátis). Ou configure uma chave de API da Anthropic em Ajustes para análise com um toque.';
-}
-
-function buildHealthSummary() {
-  const sm = S.data.summary;
-  if (!Object.keys(sm).length) return null;
-  const bps = S.data.records.filter(r => r.metrica === 'blood_pressure').slice(-30);
-  const bpLines = bps.map(r => `${r.data} ${r.hora}: ${Math.round(r.valor)}/${Math.round(r.valor2)} mmHg`).join('\n');
-
-  // ── Correlação PA × horário pós-treino ──
-  // Marca cada medição de PA como "pós-treino" se caiu dentro de até 3h após o FIM
-  // de alguma sessão de atividade (usa duração real quando disponível, senão 60min).
-  const allBP = S.data.records.filter(r => r.metrica === 'blood_pressure');
-  const allActs = S.data.records.filter(r => r.metrica === 'activity');
-  const POST_WORKOUT_WINDOW_H = 3;
-
-  const actWindows = allActs.map(r => {
-    const start = parseDMYTime(`${r.data} ${r.hora||'00:00'}`);
-    if (!start) return null;
-    const durSec = parseFloat(String(r.valor2||'').split('|')[0]) || 3600;
-    const end = start + Math.max(durSec, 300) * 1000;
-    return { start, end, postEnd: end + POST_WORKOUT_WINDOW_H * 3600 * 1000 };
-  }).filter(Boolean);
-
-  const bpPost = [], bpNormal = [];
-  for (const r of allBP) {
-    const ts = parseDMYTime(`${r.data} ${r.hora||'00:00'}`);
-    if (!ts) continue;
-    const isPost = actWindows.some(w => ts > w.end && ts <= w.postEnd);
-    (isPost ? bpPost : bpNormal).push(r);
+function pintar() {
+  /* status de atualização */
+  const p = document.getElementById('pillSync');
+  const ger = R['gerado_em'];
+  if (ger) {
+    const d = new Date(ger);
+    const h = Math.round((Date.now() - d.getTime()) / 3600000);
+    p.textContent = h < 1 ? 'atualizado agora' : (h < 48 ? 'há ' + h + 'h' : d.toLocaleDateString('pt-BR'));
+    p.className = 'pill on';
+  } else {
+    p.textContent = 'sem dados';
   }
-  const avgSys = arr => arr.length ? (arr.reduce((a,r)=>a+ +r.valor,0)/arr.length).toFixed(1) : '—';
-  const avgDia = arr => arr.length ? (arr.reduce((a,r)=>a+ +r.valor2,0)/arr.length).toFixed(1) : '—';
 
-  return `DADOS DE SAÚDE — WEARABLES (Samsung Galaxy Watch 6 + Huawei Watch D2)
-Período monitorado, resumo agregado:
+  desenharEcg(j('atividade_14d_json'));
 
-PRESSÃO ARTERIAL (${sm['blood_pressure.n']||0} medições, cuff inflável Huawei Watch D2):
-- Média geral: ${sm['blood_pressure.sys_media']||'—'}/${sm['blood_pressure.dia_media']||'—'} mmHg
-- Faixa sistólica: ${sm['blood_pressure.sys_min']||'—'}–${sm['blood_pressure.sys_max']||'—'} mmHg
-- Últimas 30 medições:
-${bpLines || '(sem registros)'}
+  /* frequência cardíaca */
+  const fc = n('fc_media');
+  if (fc !== null) {
+    set('gFc', fc, 'bpm');
+    const rep = n('fc_repouso_media'), tre = n('fc_treino_media');
+    const partes = [];
+    if (rep !== null) partes.push('repouso ' + rep);
+    if (tre !== null) partes.push('treino ' + tre);
+    if (partes.length) document.getElementById('gFcSub').textContent = partes.join(' · ');
+  }
 
-PRESSÃO ARTERIAL — SEGMENTADA POR CONTEXTO (usando horário das sessões de treino):
-- Medições até ${POST_WORKOUT_WINDOW_H}h APÓS o fim de um treino (${bpPost.length} medições): média ${avgSys(bpPost)}/${avgDia(bpPost)} mmHg
-- Medições em contexto normal, fora dessa janela pós-treino (${bpNormal.length} medições): média ${avgSys(bpNormal)}/${avgDia(bpNormal)} mmHg
-(Use essa comparação para avaliar se há elevação pressórica pós-exercício fora do esperado, considerando o perfil cardiovascular do paciente.)
+  /* pressão */
+  const sys = n('bp_sys_media'), dia = n('bp_dia_media');
+  if (sys !== null && dia !== null) {
+    document.getElementById('gPa').innerHTML = sys + '/' + dia + '<span class="u">mmHg</span>';
+    const uS = n('bp_ultima_sys'), uD = n('bp_ultima_dia');
+    if (uS !== null) document.getElementById('gPaSub').textContent = 'última ' + uS + '/' + uD;
+    document.getElementById('paSys').textContent = sys;
+    document.getElementById('paDia').textContent = dia;
+  }
 
-FREQUÊNCIA CARDÍACA — GERAL (${sm['heart_rate.n']||0} registros, inclui repouso + treino):
-- Média: ${sm['heart_rate.media']||'—'} bpm | Mín: ${sm['heart_rate.min']||'—'} | Máx: ${sm['heart_rate.max']||'—'}
+  /* saturação */
+  const o2 = n('spo2_media', 1);
+  if (o2 !== null) {
+    set('gO2', o2, '%');
+    const noites = n('spo2_noites'), lt90 = n('spo2_noites_lt90');
+    if (noites !== null) document.getElementById('gO2Sub').textContent = noites + ' noites medidas';
+    const mn = n('spo2_min_geral');
+    document.getElementById('sO2min').innerHTML = (mn === null ? '—' : mn) + '<span class="u">%</span>';
+    if (lt90 !== null) document.getElementById('sO2sub').textContent = lt90 + ' noites abaixo de 90%';
+    /* ressalva de cobertura: o número só é interpretável se houver medição suficiente */
+    if (noites !== null && noites < 120) {
+      const nb = document.getElementById('notaO2');
+      nb.hidden = false;
+      nb.innerHTML = '<b>Cobertura parcial.</b> Só ' + noites + ' noites têm medição de saturação — os relógios não registram todas as noites. Um número baixo de eventos abaixo de 90% aqui reflete a falta de medição, e não necessariamente a ausência de dessaturação.';
+    }
+  }
 
-FREQUÊNCIA CARDÍACA — SEGMENTADA:
-- Repouso/dia-a-dia (${sm['heart_rate_repouso.n']||0} registros fora de janelas de treino): média ${sm['heart_rate_repouso.media']||'—'} bpm | faixa ${sm['heart_rate_repouso.min']||'—'}–${sm['heart_rate_repouso.max']||'—'} bpm
-- Durante treino (${sm['heart_rate_treino.n']||0} registros dentro de janelas de atividade): média ${sm['heart_rate_treino.media']||'—'} bpm | faixa ${sm['heart_rate_treino.min']||'—'}–${sm['heart_rate_treino.max']||'—'} bpm
-- Zonas de FC durante treino: Z1(<120)=${sm['heart_rate_treino.zona_z1_lt120']||0} | Z2(120-144)=${sm['heart_rate_treino.zona_z2_120_144']||0} | Z3(145-164)=${sm['heart_rate_treino.zona_z3_145_164']||0} | Z4(165-179)=${sm['heart_rate_treino.zona_z4_165_179']||0} | Z5(≥180)=${sm['heart_rate_treino.zona_z5_gte180']||0}
+  /* sono */
+  const sono = n('sono_media_h', 1);
+  if (sono !== null) {
+    set('gSono', sono, 'h');
+    const nn = n('sono_noites');
+    if (nn !== null) document.getElementById('gSonoSub').textContent = nn + ' noites';
+    document.getElementById('sMed').innerHTML = sono + '<span class="u">h</span>';
+    const ef = n('sono_eficiencia_media');
+    if (ef !== null) document.getElementById('sMedSub').textContent = 'eficiência ' + ef + '%';
+    const curta = n('sono_noites_lt6');
+    document.getElementById('sCurta').textContent = curta === null ? '—' : curta;
+  }
 
-ATIVIDADE POR MODALIDADE:
-- Corrida: ${sm['activity_corrida.n']||0} sessões | ${sm['activity_corrida.km_total']||'—'} km | FC média ${sm['activity_corrida.fc_media']||'—'} bpm (máx ${sm['activity_corrida.fc_max']||'—'})
-- CrossFit: ${sm['activity_crossfit.n']||0} sessões | FC média ${sm['activity_crossfit.fc_media']||'—'} bpm (máx ${sm['activity_crossfit.fc_max']||'—'})
-- Outros: ${sm['activity_outros.n']||0} sessões
+  /* atividade */
+  const am = n('atividade_min_media_dia');
+  if (am !== null) set('gAtiv', am, 'min/dia');
 
-SPO2 (${sm['spo2.n']||0} registros):
-- Média: ${sm['spo2.media']||'—'}% | Mínimo: ${sm['spo2.min']||'—'}%
-- Eventos abaixo de 90%: ${sm['spo2.eventos_lt90']||0}
+  const cc = n('treinos_6m_corrida'), cx = n('treinos_6m_crossfit'), cm = n('treinos_6m_caminhada');
+  document.getElementById('cCorrida').textContent = cc === null ? '—' : cc;
+  document.getElementById('cCross').textContent   = cx === null ? '—' : cx;
+  document.getElementById('cCamin').textContent   = cm === null ? '—' : cm;
 
-SONO (${sm['sleep.n']||0} noites):
-- Média: ${sm['sleep.media_horas']||'—'}h | Noites <6h: ${sm['sleep.noites_lt6']||0} | Noites ≥7h: ${sm['sleep.noites_gte7']||0}
+  /* FC de pico em treino — relevante para o acompanhamento cardiológico */
+  const pico = n('fc_treino_max');
+  if (pico !== null) {
+    set('cFcMax', pico, 'bpm');
+    const med = n('fc_treino_media');
+    if (med !== null) document.getElementById('cFcMaxSub').textContent = 'média em treino ' + med;
+  }
 
-ATIVIDADE GERAL:
-- Passos médios/dia: ${sm['steps.media_diaria']||'—'} | Dias ≥10.000: ${sm['steps.dias_gte10000']||0}
-- Km em atividades: ${sm['activity.km_total']||'—'}`;
+  tabelaTreinos();
+  tabelaSono();
+  tabelaPa();
 }
 
-const AI_INSTRUCTIONS = `Você é um assistente de análise de dados de saúde. Analise os dados de wearables acima considerando este contexto do paciente:
-- Homem, 43 anos, 173cm, ~76kg, composição corporal excelente (12,4% gordura)
-- Perfil cardiovascular de atenção: escore de cálcio coronário 201 (percentil 100), progrediu de 34 em ~2,5 anos; placas calcificadas e mistas sem estenoses significativas
-- Em uso de: estatina (Pitavastatina) + Inclisiran, anti-hipertensivo (losartan+HCTZ), Dapagliflozina, testosterona IM, Mounjaro
-- Pratica CrossFit com FC de pico até 193 bpm; questão aberta sobre teste de estresse funcional
-- Suspeita de apneia do sono não confirmada (polissonografia pendente); histórico de SpO2 noturno <90%
-
-Forneça:
-1. TENDÊNCIAS: o que os dados mostram (PA, FC, SpO2, sono, atividade)
-2. PONTOS DE ATENÇÃO: valores ou padrões que merecem observação, no contexto do perfil cardiovascular
-3. CORRELAÇÕES: possíveis relações entre métricas — inclua obrigatoriamente uma leitura da seção "PRESSÃO ARTERIAL — SEGMENTADA POR CONTEXTO": compare a PA pós-treino com a PA em contexto normal e comente se a diferença (se houver) é esperada fisiologicamente ou merece atenção, dado o perfil cardiovascular do paciente. Considere também outras correlações (ex: sono ruim ↔ PA elevada)
-4. PERGUNTAS PARA OS MÉDICOS: 3-5 perguntas específicas para cardiologista/endocrinologista baseadas nesses dados
-Seja objetivo e baseado apenas nos dados. Não faça diagnósticos. Responda em português.`;
-
-function copyPromptToClipboard() {
-  const summary = buildHealthSummary();
-  if (!summary) { showAlert('Conecte a planilha primeiro para gerar o resumo.', 'warn'); return; }
-  const full = summary + '\n\n---\n\n' + AI_INSTRUCTIONS;
-  navigator.clipboard.writeText(full).then(
-    () => showAlert('Prompt copiado! Cole no app do Claude para receber a análise.', 'info'),
-    () => showAlert('Não foi possível copiar automaticamente.', 'err')
-  );
+/* ── o traçado: cada dia vira um pico proporcional aos minutos ativos ── */
+function desenharEcg(dias) {
+  const svg = document.getElementById('ecg');
+  if (!dias.length) { svg.innerHTML = ''; return; }
+  const W = 1000, H = 56, base = H - 10;
+  let max = 20;
+  for (const d of dias) if (d.min > max) max = d.min;
+  const passo = W / dias.length;
+  let path = 'M 0 ' + base;
+  let total = 0;
+  dias.forEach(function (dia, i) {
+    total += dia.min;
+    const x = i * passo, alt = (dia.min / max) * (base - 8);
+    if (dia.min > 0) {
+      path += ' L ' + (x + passo * 0.28) + ' ' + base
+            + ' L ' + (x + passo * 0.38) + ' ' + (base - alt * 0.32)
+            + ' L ' + (x + passo * 0.50) + ' ' + (base - alt)
+            + ' L ' + (x + passo * 0.62) + ' ' + (base + 4)
+            + ' L ' + (x + passo * 0.72) + ' ' + base;
+    }
+    path += ' L ' + (x + passo) + ' ' + base;
+  });
+  svg.innerHTML = '<path d="' + path + '" class="trace" fill="none" stroke="var(--ch-ativ)" '
+    + 'stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>';
+  document.getElementById('ecgCap').textContent =
+    'atividade · 14 dias · ' + Math.round(total / 60) + 'h no total';
 }
 
-async function runAIAnalysis() {
-  const key = localStorage.getItem('hm_api_key');
-  if (!key) {
-    showAlert('Sem chave de API — usando o modo gratuito: prompt copiado para colar no app do Claude.', 'info');
-    copyPromptToClipboard();
+/* ── tabelas ── */
+function tabelaTreinos() {
+  const t = j('treinos_recentes_json'), box = document.getElementById('ativBox');
+  document.getElementById('ativN').textContent = t.length ? t.length + ' mais recentes' : '';
+  if (!t.length) {
+    box.innerHTML = '<div class="empty"><b>Nenhum treino registrado</b>Sincronize o relógio e rode o sync no Apps Script.</div>';
     return;
   }
-  const summary = buildHealthSummary();
-  if (!summary) { showAlert('Conecte a planilha primeiro.', 'warn'); return; }
+  const linhas = t.map(function (s) {
+    const hora = (s.hora && String(s.hora).indexOf('1899') < 0)
+      ? ' <span style="color:var(--ink-3)">' + s.hora + '</span>' : '';
+    const fc = s.fc_media
+      ? (s.fc_media + (s.fc_max ? ' · máx ' + s.fc_max : ''))
+      : '—';
+    return '<tr>'
+      + '<td class="num">' + (s.data || '—') + hora + '</td>'
+      + '<td><span class="tag ' + s.modalidade + '">' + s.modalidade + '</span></td>'
+      + '<td class="num">' + dur(s.dur) + '</td>'
+      + '<td class="num">' + (s.dist ? (+s.dist).toFixed(2) + ' km' : '—') + '</td>'
+      + '<td class="num">' + fc + '</td>'
+      + '</tr>';
+  }).join('');
+  box.innerHTML = '<table><thead><tr><th>Data</th><th>Tipo</th><th>Duração</th>'
+    + '<th>Distância</th><th>FC</th></tr></thead><tbody>' + linhas + '</tbody></table>';
+}
 
-  const btn = document.getElementById('btnAnalyze');
-  btn.disabled = true; btn.textContent = '✦ Analisando…';
+function tabelaSono() {
+  const noites = j('sono_7d_json'), box = document.getElementById('sonoBox');
+  document.getElementById('sonoN').textContent = noites.length ? noites.length + ' noites' : '';
+  if (!noites.length) {
+    box.innerHTML = '<div class="empty"><b>Sem registro de sono</b>O relógio precisa ser usado durante a noite.</div>';
+    return;
+  }
+  let max = 9;
+  for (const x of noites) if (x.h > max) max = x.h;
+  const barras = noites.map(function (x) {
+    const p = x.noite.split('-');
+    return '<div class="bar">'
+      + '<span class="d">' + p[2] + '/' + p[1] + '</span>'
+      + '<span class="t"><i style="width:' + Math.min(100, x.h / max * 100) + '%"></i></span>'
+      + '<span class="v">' + x.h.toFixed(1) + 'h</span></div>';
+  }).join('');
+  box.innerHTML = '<div class="bars" style="--c:var(--ch-sono)">' + barras + '</div>';
+}
 
+function tabelaPa() {
+  const leituras = j('bp_7d_json'), box = document.getElementById('paBox');
+  document.getElementById('paN').textContent = leituras.length ? leituras.length + ' medições' : '';
+  if (!leituras.length) {
+    box.innerHTML = '<div class="empty"><b>Sem medições recentes</b>Meça com a pulseira inflável do Watch D2.</div>';
+    return;
+  }
+  const linhas = leituras.slice(0, 20).map(function (r) {
+    const dt = new Date(r.t);
+    return '<tr>'
+      + '<td class="num">' + dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+      + ' <span style="color:var(--ink-3)">' + dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + '</span></td>'
+      + '<td class="num">' + r.s + '</td><td class="num">' + r.d + '</td>'
+      + '<td><span class="tag">' + classePa(r.s, r.d) + '</span></td></tr>';
+  }).join('');
+  box.innerHTML = '<table><thead><tr><th>Data</th><th>Sistólica</th><th>Diastólica</th>'
+    + '<th>Faixa</th></tr></thead><tbody>' + linhas + '</tbody></table>';
+}
+
+/* Faixas da diretriz brasileira de hipertensão — rótulo descritivo, não diagnóstico. */
+function classePa(s, d) {
+  if (s < 120 && d < 80) return 'ótima';
+  if (s < 130 && d < 85) return 'normal';
+  if (s < 140 && d < 90) return 'limítrofe';
+  if (s < 160 && d < 100) return 'estágio 1';
+  return 'estágio 2';
+}
+
+function dur(seg) {
+  if (!seg) return '—';
+  const h = Math.floor(seg / 3600), m = Math.round((seg % 3600) / 60);
+  return h ? (h + 'h' + String(m).padStart(2, '0')) : (m + 'min');
+}
+
+/* ── medicamentos (via Web App) ── */
+let medsCarregados = false;
+async function carregarMeds() {
+  if (medsCarregados) return;
+  const box = document.getElementById('medBox'), cont = document.getElementById('contBox');
+  if (!WEBAPP_URL) {
+    box.innerHTML = '<div class="empty"><b>Web App não configurado</b>Cole a URL da implantação em WEBAPP_URL, no topo do script.</div>';
+    cont.innerHTML = '';
+    return;
+  }
   try {
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 2000,
-        messages: [{ role: 'user', content: summary + '\n\n---\n\n' + AI_INSTRUCTIONS }]
-      })
-    });
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const data = await resp.json();
-    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('\n');
-
-    document.getElementById('aiResult').textContent = text;
-    document.getElementById('aiDate').textContent = new Date().toLocaleString('pt-BR');
-    document.getElementById('aiResultCard').style.display = 'block';
-    localStorage.setItem('hm_last_analysis', JSON.stringify({ text, date: Date.now() }));
+    const resp = await fetch(WEBAPP_URL + '?action=listar_medicamentos&token=' + encodeURIComponent(API_TOKEN));
+    const r = await resp.json();
+    if (!r.ok) throw new Error(r.erro || 'erro ao listar');
+    medsCarregados = true;
+    const per = r.medicamentos.filter(function (m) { return m.tipo === 'periodico' && m.ativo; });
+    const con = r.medicamentos.filter(function (m) { return m.tipo !== 'periodico' && m.ativo; });
+    document.getElementById('medN').textContent = per.length + ' ativos';
+    box.innerHTML = per.map(function (m) {
+      let txt = 'sem registro', cls = '';
+      if (m.proxima_aplicacao) {
+        const dias = Math.ceil((new Date(m.proxima_aplicacao + 'T12:00:00') - Date.now()) / 86400000);
+        if (dias < 0) { txt = 'atrasado ' + (-dias) + 'd'; cls = 'late'; }
+        else if (dias === 0) { txt = 'hoje'; cls = 'soon'; }
+        else { txt = 'em ' + dias + 'd'; cls = dias <= 3 ? 'soon' : ''; }
+      }
+      const nomeEsc = m.nome.replace(/'/g, "\\'");
+      return '<div class="med">'
+        + '<div><div class="nm">' + m.nome + '</div><div class="ds">'
+        + [m.dose, m.via].filter(Boolean).join(' · ') + '</div></div>'
+        + '<div class="rt"><div class="due ' + cls + '">' + txt + '</div>'
+        + '<button class="act" onclick="aplicar(\'' + nomeEsc + '\')">Registrar</button></div>'
+        + '</div>';
+    }).join('') || '<div class="empty">Nenhum medicamento periódico ativo.</div>';
+    cont.innerHTML = con.map(function (m) {
+      return '<div class="med"><div><div class="nm">' + m.nome + '</div><div class="ds">'
+        + [m.dose, m.via].filter(Boolean).join(' · ') + '</div></div></div>';
+    }).join('') || '<div class="empty">Nenhum medicamento contínuo cadastrado.</div>';
   } catch (e) {
-    showAlert('Erro na análise: ' + e.message + '. Verifique a chave de API.', 'err');
-  } finally {
-    btn.disabled = false; btn.textContent = '✦ Analisar com Claude';
+    box.innerHTML = '<div class="empty"><b>Não foi possível carregar</b>' + e.message + '</div>';
   }
 }
 
-function copyAnalysis() {
-  const t = document.getElementById('aiResult').textContent;
-  navigator.clipboard.writeText(t).then(() => showAlert('Análise copiada.', 'info'));
+async function aplicar(nome) {
+  if (!confirm('Registrar aplicação de ' + nome + ' hoje?')) return;
+  try {
+    const resp = await fetch(WEBAPP_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'registrar_aplicacao', token: API_TOKEN, nome: nome })
+    });
+    const r = await resp.json();
+    if (!r.ok) throw new Error(r.erro || 'erro ao registrar');
+    medsCarregados = false;
+    carregarMeds();
+  } catch (e) {
+    alert('Não foi possível registrar: ' + e.message);
+  }
 }
 
-// restaura última análise e estado da chave ao abrir
-(function initAI() {
-  const saved = localStorage.getItem('hm_last_analysis');
-  if (saved) {
-    try {
-      const { text, date } = JSON.parse(saved);
-      document.getElementById('aiResult').textContent = text;
-      document.getElementById('aiDate').textContent = new Date(date).toLocaleString('pt-BR');
-      document.getElementById('aiResultCard').style.display = 'block';
-    } catch(e) {}
-  }
-  const k = localStorage.getItem('hm_api_key');
-  if (k) document.getElementById('apiKey').value = k;
-  updateAiHint();
-})();
-function showAlert(msg, type) {
-  const a = document.getElementById('alertArea');
-  const d = document.createElement('div');
-  d.className = 'alertbox ' + type;
-  d.textContent = msg;
-  a.appendChild(d);
-  setTimeout(() => d.remove(), 10000);
-}
+carregar();
 </script>
 </body>
 </html>
