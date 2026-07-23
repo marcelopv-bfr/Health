@@ -167,12 +167,16 @@ dialog label{
   display:block;font-family:'IBM Plex Mono',monospace;font-size:10px;
   letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px;
 }
-dialog input[type=date]{
-  font:inherit;font-family:'IBM Plex Mono',monospace;font-size:14px;width:100%;
+dialog input[type=date],
+dialog input[type=text],
+dialog input[type=number],
+dialog select{
+  font:inherit;font-size:14px;width:100%;
   padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--card);
   color:var(--ink);
 }
-dialog input[type=date]:focus-visible{outline:2px solid var(--ch-o2);outline-offset:1px}
+dialog input[type=date],dialog input[type=number]{font-family:'IBM Plex Mono',monospace}
+dialog input:focus-visible,dialog select:focus-visible{outline:2px solid var(--ch-o2);outline-offset:1px}
 dialog .chk{display:flex;align-items:flex-start;gap:9px;margin-top:14px;cursor:pointer}
 dialog .chk input{margin-top:2px;width:16px;height:16px;accent-color:var(--ch-ativ);flex:none}
 dialog .chk span{font-size:12.5px;color:var(--ink-2);text-transform:none;letter-spacing:0;font-family:inherit}
@@ -381,13 +385,50 @@ button.act:focus-visible{outline:2px solid var(--ch-o2);outline-offset:2px}
     <div id="medBox"><div class="empty">carregando…</div></div>
   </div>
   <div class="panel">
-    <h2>Uso contínuo</h2>
+    <h2>Uso contínuo <button class="act" id="btnNovo" style="margin-left:auto">+ Adicionar</button></h2>
     <div id="contBox"><div class="empty">—</div></div>
   </div>
-  <div class="note">Revise doses e vias: a lista foi pré-carregada e pode estar desatualizada. Edite direto na planilha, aba <b>Medicamentos</b>.</div>
+  <div class="note">Revise doses e vias: a lista foi pré-carregada e pode estar desatualizada. Você pode editar aqui mesmo, ou direto na planilha, aba <b>Medicamentos</b>.</div>
 </section>
 
 </div>
+
+<!-- Diálogo de cadastro/edição de medicamento -->
+<dialog id="dlgMed">
+  <div class="dh">
+    <h3 id="medTit">Novo medicamento</h3>
+    <p>As alterações valem a partir de agora; o histórico de aplicações é preservado.</p>
+  </div>
+  <div class="db">
+    <label for="mNome">Nome</label>
+    <input type="text" id="mNome" placeholder="ex.: Dapagliflozina">
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <div style="flex:1">
+        <label for="mDose">Dose</label>
+        <input type="text" id="mDose" placeholder="10mg">
+      </div>
+      <div style="flex:1">
+        <label for="mVia">Via</label>
+        <input type="text" id="mVia" placeholder="Oral">
+      </div>
+    </div>
+    <label for="mTipo" style="margin-top:12px">Tipo</label>
+    <select id="mTipo">
+      <option value="continuo">Uso contínuo (sem lembrete)</option>
+      <option value="periodico">Periódico (com lembrete)</option>
+    </select>
+    <div id="mFreqBox" hidden style="margin-top:12px">
+      <label for="mFreq">A cada quantos dias</label>
+      <input type="number" id="mFreq" min="1" max="365" placeholder="30">
+    </div>
+  </div>
+  <div class="msg" id="medMsg" hidden></div>
+  <div class="df">
+    <button type="button" id="medExcluir" style="margin-right:auto;color:var(--ch-fc)" hidden>Remover</button>
+    <button type="button" id="medCancelar">Cancelar</button>
+    <button type="button" class="pri" id="medSalvar">Salvar</button>
+  </div>
+</dialog>
 
 <!-- Diálogo de registro de aplicação: data retroativa + lembrete no Calendar -->
 <dialog id="dlg">
@@ -862,12 +903,13 @@ async function carregarMeds(forcar) {
 
     box.innerHTML = per.map(function (m) {
       const i = medsCache.indexOf(m);
-      let txt = 'sem registro', cls = '';
+      let txt = 'sem registro', cls = '', quando = '';
       if (m.proxima_aplicacao) {
         const dias = Math.ceil((new Date(m.proxima_aplicacao + 'T12:00:00') - Date.now()) / 86400000);
         if (dias < 0) { txt = 'atrasado ' + (-dias) + 'd'; cls = 'late'; }
         else if (dias === 0) { txt = 'hoje'; cls = 'soon'; }
         else { txt = 'em ' + dias + 'd'; cls = dias <= 3 ? 'soon' : ''; }
+        quando = '<div class="ds">próxima ' + brDate(m.proxima_aplicacao) + '</div>';
       }
       const ult = m.ultima_aplicacao ? ('última ' + brDate(m.ultima_aplicacao)) : 'nunca registrado';
       const freq = m.frequencia_dias ? (' · a cada ' + m.frequencia_dias + 'd') : '';
@@ -876,13 +918,19 @@ async function carregarMeds(forcar) {
         + '<div class="ds">' + esc([m.dose, m.via].filter(Boolean).join(' · ')) + freq + '</div>'
         + '<div class="ds">' + ult + '</div></div>'
         + '<div class="rt"><div class="due ' + cls + '">' + txt + '</div>'
-        + '<button class="act" data-med="' + i + '">Registrar</button></div>'
+        + quando
+        + '<button class="act" data-med="' + i + '">Registrar</button>'
+        + '<button class="act" data-edit="' + i + '" title="Editar">Editar</button></div>'
         + '</div>';
     }).join('') || '<div class="empty">Nenhum medicamento periódico ativo.</div>';
 
     cont.innerHTML = con.map(function (m) {
-      return '<div class="med"><div><div class="nm">' + esc(m.nome) + '</div><div class="ds">'
-        + esc([m.dose, m.via].filter(Boolean).join(' · ')) + '</div></div></div>';
+      const i = medsCache.indexOf(m);
+      return '<div class="med">'
+        + '<div><div class="nm">' + esc(m.nome) + '</div><div class="ds">'
+        + esc([m.dose, m.via].filter(Boolean).join(' · ')) + '</div></div>'
+        + '<div class="rt"><button class="act" data-edit="' + i + '">Editar</button></div>'
+        + '</div>';
     }).join('') || '<div class="empty">Nenhum medicamento contínuo cadastrado.</div>';
   } catch (e) {
     box.innerHTML = '<div class="empty"><b>Não foi possível carregar</b>' + esc(e.message) + '</div>';
@@ -977,6 +1025,88 @@ document.getElementById('dlgConfirmar').addEventListener('click', async function
 
 function erroDlg(t) {
   const m = document.getElementById('dlgMsg');
+  m.textContent = t; m.hidden = false;
+}
+
+/* ── cadastro e edição de medicamentos ── */
+const dlgMed = document.getElementById('dlgMed');
+let medEditando = null;
+
+/* delegação também para os botões Editar, nas duas listas */
+['medBox', 'contBox'].forEach(function (id) {
+  document.getElementById(id).addEventListener('click', function (ev) {
+    const b = ev.target.closest('button[data-edit]');
+    if (b) abrirEdicao(medsCache[+b.dataset.edit]);
+  });
+});
+document.getElementById('btnNovo').addEventListener('click', function () { abrirEdicao(null); });
+
+function abrirEdicao(med) {
+  medEditando = med || null;
+  document.getElementById('medTit').textContent = med ? 'Editar medicamento' : 'Novo medicamento';
+  document.getElementById('mNome').value = med ? med.nome : '';
+  document.getElementById('mDose').value = med ? (med.dose || '') : '';
+  document.getElementById('mVia').value  = med ? (med.via  || '') : '';
+  document.getElementById('mTipo').value = med ? (med.tipo === 'periodico' ? 'periodico' : 'continuo') : 'continuo';
+  document.getElementById('mFreq').value = med && med.frequencia_dias ? med.frequencia_dias : '';
+  document.getElementById('medExcluir').hidden = !med;
+  document.getElementById('medMsg').hidden = true;
+  const s = document.getElementById('medSalvar');
+  s.disabled = false; s.textContent = 'Salvar';
+  alternarFreq();
+  dlgMed.showModal();
+}
+
+/* frequência só faz sentido para periódicos */
+function alternarFreq() {
+  const per = document.getElementById('mTipo').value === 'periodico';
+  document.getElementById('mFreqBox').hidden = !per;
+}
+document.getElementById('mTipo').addEventListener('change', alternarFreq);
+document.getElementById('medCancelar').addEventListener('click', function () { dlgMed.close(); });
+
+document.getElementById('medSalvar').addEventListener('click', async function () {
+  const btn = this, msg = document.getElementById('medMsg');
+  const nome = document.getElementById('mNome').value.trim();
+  const tipo = document.getElementById('mTipo').value;
+  const freq = document.getElementById('mFreq').value;
+  if (!nome) { erroMed('Informe o nome do medicamento.'); return; }
+  if (tipo === 'periodico' && !(Number(freq) > 0)) {
+    erroMed('Informe de quantos em quantos dias é a aplicação.'); return;
+  }
+  btn.disabled = true; btn.textContent = 'salvando…'; msg.hidden = true;
+  try {
+    const r = await postWeb({
+      action: 'salvar_medicamento',
+      linha: medEditando ? medEditando.linha : null,
+      nome: nome,
+      dose: document.getElementById('mDose').value.trim(),
+      via:  document.getElementById('mVia').value.trim(),
+      tipo: tipo,
+      frequencia_dias: tipo === 'periodico' ? Number(freq) : ''
+    });
+    if (!r.ok) throw new Error(r.erro || 'não foi possível salvar');
+    dlgMed.close();
+    carregarMeds(true);
+  } catch (e) {
+    erroMed(e.message);
+    btn.disabled = false; btn.textContent = 'Salvar';
+  }
+});
+
+document.getElementById('medExcluir').addEventListener('click', async function () {
+  if (!medEditando) return;
+  if (!confirm('Remover ' + medEditando.nome + ' da lista?\n\nO histórico de aplicações é preservado na planilha.')) return;
+  try {
+    const r = await postWeb({ action: 'remover_medicamento', linha: medEditando.linha });
+    if (!r.ok) throw new Error(r.erro || 'não foi possível remover');
+    dlgMed.close();
+    carregarMeds(true);
+  } catch (e) { erroMed(e.message); }
+});
+
+function erroMed(t) {
+  const m = document.getElementById('medMsg');
   m.textContent = t; m.hidden = false;
 }
 
