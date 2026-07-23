@@ -267,6 +267,7 @@ button.act:focus-visible{outline:2px solid var(--ch-o2);outline-offset:2px}
   <button role="tab" data-t="ativ"   aria-selected="false">Atividades</button>
   <button role="tab" data-t="sono"   aria-selected="false">Sono</button>
   <button role="tab" data-t="pa"     aria-selected="false">Pressão</button>
+  <button role="tab" data-t="analise" aria-selected="false">Análise</button>
   <button role="tab" data-t="meds"   aria-selected="false">Medicamentos</button>
 </nav>
 
@@ -375,6 +376,48 @@ button.act:focus-visible{outline:2px solid var(--ch-o2);outline-offset:2px}
       <div class="lab">Média diastólica</div><div class="val" id="paDia">—</div>
       <div class="sub">últimos 6 meses</div>
     </div>
+  </div>
+</section>
+
+<!-- ─────────── ANÁLISE ─────────── -->
+<section id="tab-analise" hidden>
+  <div class="panel">
+    <h2>Tendências <span class="n">30 dias vs. 60 anteriores</span></h2>
+    <div id="tendBox"><div class="empty">carregando…</div></div>
+  </div>
+
+  <div class="panel">
+    <h2>Qualidade dos dados <span class="n" id="alertaN"></span></h2>
+    <div id="alertaBox"><div class="empty">carregando…</div></div>
+  </div>
+
+  <div class="panel">
+    <h2>Preparar consulta</h2>
+    <div style="padding:14px 16px">
+      <p class="sub" style="margin:0 0 12px">
+        Gera um resumo estruturado dos seus dados com perguntas objetivas, para
+        você levar à consulta ou colar numa conversa e discutir antes.
+      </p>
+      <label for="medico" style="font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);display:block;margin-bottom:6px">Especialidade</label>
+      <select id="medico" style="font:inherit;font-size:14px;width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--card);color:var(--ink)">
+        <option value="cardio">Cardiologia</option>
+        <option value="endocrino">Endocrinologia</option>
+        <option value="sono">Sono / pneumologia</option>
+        <option value="geral">Visão geral</option>
+      </select>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="act" id="btnGerar">Gerar texto</button>
+        <button class="act" id="btnCopiar" hidden>Copiar</button>
+      </div>
+      <textarea id="promptOut" hidden readonly
+        style="width:100%;margin-top:12px;min-height:220px;font-family:'IBM Plex Mono',monospace;font-size:12px;line-height:1.5;padding:12px;border:1px solid var(--line);border-radius:9px;background:#F7F9FB;color:var(--ink);resize:vertical"></textarea>
+    </div>
+  </div>
+
+  <div class="note">
+    Estes números descrevem medições, não diagnóstico. Tendências e alertas são
+    cálculo automático sobre os seus registros — servem para orientar o que
+    perguntar aos seus médicos, não para substituir avaliação clínica.
   </div>
 </section>
 
@@ -603,17 +646,24 @@ function pintar() {
   document.getElementById('cCross').textContent   = cx === null ? '—' : cx;
   document.getElementById('cCamin').textContent   = cm === null ? '—' : cm;
 
-  /* FC de pico em treino — relevante para o acompanhamento cardiológico */
+  /* FC de pico em treino — relevante para o acompanhamento cardiológico.
+     'tcx' = medida real da sessão; 'janela' = aproximada por cruzamento. */
   const pico = n('fc_treino_max');
   if (pico !== null) {
     set('cFcMax', pico, 'bpm');
     const med = n('fc_treino_media');
-    if (med !== null) document.getElementById('cFcMaxSub').textContent = 'média em treino ' + med;
+    const origem = R['fc_treino_origem'];
+    const nSes = n('fc_treino_n');
+    let sub = med !== null ? ('média em treino ' + med) : 'maior valor em treino';
+    if (origem === 'tcx') sub += nSes ? (' · ' + nSes + ' sessões medidas') : '';
+    else if (origem === 'janela') sub += ' · aproximado';
+    document.getElementById('cFcMaxSub').textContent = sub;
   }
 
   tabelaTreinos();
   tabelaSono();
   tabelaPa();
+  tabelaAnalise();
 }
 
 /* ── o traçado: cada dia vira um pico proporcional aos minutos ativos ── */
@@ -1027,6 +1077,140 @@ function erroDlg(t) {
   const m = document.getElementById('dlgMsg');
   m.textContent = t; m.hidden = false;
 }
+
+/* ══════════════════════════════════════════════════════════════
+   ANÁLISE — tendências, qualidade de dados e preparo de consulta
+   Tendências e alertas vêm prontos do backend (cálculo determinístico,
+   sem IA). O preparo de consulta monta um texto a partir do que já foi
+   carregado, para você colar numa conversa e discutir.
+   ══════════════════════════════════════════════════════════════ */
+function tabelaAnalise() {
+  /* ── tendências ── */
+  const t = j('tendencias_json'), tb = document.getElementById('tendBox');
+  if (!t.length) {
+    tb.innerHTML = '<div class="empty"><b>Ainda sem tendência</b>São necessários pelo menos 90 dias de registro para comparar períodos.</div>';
+  } else {
+    tb.innerHTML = t.map(function (x) {
+      const d = x.atual - x.anterior;
+      const pct = x.anterior ? (d / x.anterior * 100) : 0;
+      const igual = Math.abs(pct) < 2;                 // variação < 2% é ruído
+      const bom = x.menorMelhor ? d < 0 : d > 0;
+      const cor = igual ? 'var(--ink-3)' : (bom ? 'var(--ch-ativ)' : 'var(--ch-pa)');
+      const seta = igual ? '=' : (d > 0 ? '↑' : '↓');
+      return '<div class="med">'
+        + '<div><div class="nm">' + esc(x.m) + '</div>'
+        + '<div class="ds">' + x.anterior + ' → ' + x.atual + ' ' + esc(x.u) + '</div></div>'
+        + '<div class="rt"><div class="due" style="color:' + cor + '">'
+        + seta + ' ' + Math.abs(pct).toFixed(1) + '%</div></div>'
+        + '</div>';
+    }).join('');
+  }
+
+  /* ── alertas de qualidade ── */
+  const a = j('alertas_json'), ab = document.getElementById('alertaBox');
+  document.getElementById('alertaN').textContent = a.length ? a.length + ' ponto(s)' : '';
+  if (!a.length) {
+    ab.innerHTML = '<div class="empty"><b>Nada a apontar</b>As medições estão com cobertura e valores dentro do esperado.</div>';
+  } else {
+    ab.innerHTML = a.map(function (x) {
+      return '<div class="med"><div>'
+        + '<div class="nm">' + esc(x.n) + '</div>'
+        + '<div class="ds" style="max-width:640px;white-space:normal">' + esc(x.t) + '</div>'
+        + '</div></div>';
+    }).join('');
+  }
+}
+
+/* Monta o texto da consulta a partir das chaves já carregadas do Resumo. */
+function gerarTextoConsulta(area) {
+  const L = [];
+  const v = function (k, suf) { const x = R[k]; return (x === undefined || x === '') ? null : (x + (suf || '')); };
+  const linha = function (rot, val) { if (val !== null && val !== undefined) L.push('- ' + rot + ': ' + val); };
+
+  const titulos = {
+    cardio: 'consulta de cardiologia',
+    endocrino: 'consulta de endocrinologia',
+    sono: 'avaliação de sono',
+    geral: 'revisão geral de saúde'
+  };
+  L.push('Reuni os dados dos meus wearables para preparar uma ' + (titulos[area] || 'consulta') + '.');
+  L.push('Me ajude a interpretar e a montar perguntas objetivas para levar ao médico.');
+  L.push('');
+  L.push('PERÍODO: últimos 6 meses · gerado em ' + new Date().toLocaleDateString('pt-BR'));
+  L.push('');
+
+  if (area === 'cardio' || area === 'geral') {
+    L.push('CARDIOVASCULAR');
+    linha('FC média', v('fc_media', ' bpm'));
+    linha('FC de repouso', v('fc_repouso_media', ' bpm'));
+    linha('FC média em treino', v('fc_treino_media', ' bpm'));
+    linha('FC de pico em treino', v('fc_treino_max', ' bpm'));
+    linha('Pressão média', (v('bp_sys_media') && v('bp_dia_media')) ? (R['bp_sys_media'] + '/' + R['bp_dia_media'] + ' mmHg') : null);
+    linha('Última pressão', (v('bp_ultima_sys') && v('bp_ultima_dia')) ? (R['bp_ultima_sys'] + '/' + R['bp_ultima_dia'] + ' mmHg') : null);
+    L.push('');
+  }
+  if (area === 'sono' || area === 'geral' || area === 'cardio') {
+    L.push('SONO E SATURAÇÃO');
+    linha('Sono médio por noite', v('sono_media_h', ' h'));
+    linha('Eficiência do sono', v('sono_eficiencia_media', '%'));
+    linha('Noites abaixo de 6h', v('sono_noites_lt6'));
+    linha('Noites com sono registrado', v('sono_noites'));
+    linha('Saturação média noturna', v('spo2_media', '%'));
+    linha('Menor saturação registrada', v('spo2_min_geral', '%'));
+    linha('Noites com mínimo abaixo de 90%', v('spo2_noites_lt90'));
+    linha('Noites com medição de saturação', v('spo2_noites'));
+    L.push('');
+  }
+  if (area === 'endocrino' || area === 'geral' || area === 'cardio') {
+    L.push('ATIVIDADE FÍSICA');
+    linha('Corridas (6 meses)', v('treinos_6m_corrida'));
+    linha('CrossFit (6 meses)', v('treinos_6m_crossfit'));
+    linha('Caminhadas (6 meses)', v('treinos_6m_caminhada'));
+    linha('Minutos de treino por dia', v('atividade_min_media_dia', ' min'));
+    linha('Passos por dia', v('passos_media_dia'));
+    L.push('');
+  }
+
+  const t = j('tendencias_json');
+  if (t.length) {
+    L.push('TENDÊNCIA (últimos 30 dias vs. 60 anteriores)');
+    t.forEach(function (x) {
+      L.push('- ' + x.m + ': ' + x.anterior + ' → ' + x.atual + ' ' + x.u);
+    });
+    L.push('');
+  }
+
+  const a = j('alertas_json');
+  if (a.length) {
+    L.push('LIMITAÇÕES DOS DADOS (considerar ao interpretar)');
+    a.forEach(function (x) { L.push('- ' + x.n + ': ' + x.t); });
+    L.push('');
+  }
+
+  L.push('O que estes números sugerem que eu deva perguntar? Aponte também');
+  L.push('o que NÃO dá para concluir a partir deles.');
+  return L.join('\n');
+}
+
+document.getElementById('btnGerar').addEventListener('click', function () {
+  const area = document.getElementById('medico').value;
+  const out = document.getElementById('promptOut');
+  out.value = gerarTextoConsulta(area);
+  out.hidden = false;
+  document.getElementById('btnCopiar').hidden = false;
+});
+
+document.getElementById('btnCopiar').addEventListener('click', function () {
+  const out = document.getElementById('promptOut');
+  out.select();
+  const btn = this;
+  navigator.clipboard.writeText(out.value).then(function () {
+    btn.textContent = 'copiado ✓';
+    setTimeout(function () { btn.textContent = 'Copiar'; }, 1800);
+  }).catch(function () {
+    btn.textContent = 'selecione e copie';
+  });
+});
 
 /* ── cadastro e edição de medicamentos ── */
 const dlgMed = document.getElementById('dlgMed');
