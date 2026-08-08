@@ -105,8 +105,13 @@
   /* ── dados ───────────────────────────────────────────────────────────── */
   async function carregarPlano() {
     if (carregado) return;
+    // headers=1 força o gviz a tratar a linha 1 como cabeçalho. Sem isso,
+    // o próprio endpoint do Google confunde onde termina o cabeçalho numa
+    // aba Resumo com colunas de tipo muito misto (números e blobs JSON
+    // longos) e devolve só as últimas linhas como dado — foi isso que
+    // fazia o app inteiro aparecer "sem dados" mesmo com a planilha certa.
     var url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID
-            + '/gviz/tq?tqx=out:json&sheet=Resumo';
+            + '/gviz/tq?tqx=out:json&sheet=Resumo&headers=1';
     try {
       var txt = await (await fetch(url)).text();
       var m = txt.match(/setResponse\(([\s\S]*)\);?\s*$/);
