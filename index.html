@@ -522,8 +522,7 @@ document.querySelectorAll('nav button').forEach(function (b) {
 
 /* ── leitura da aba Resumo via gviz ── */
 async function carregar() {
-  const url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=out:json&sheet=Resumo';
-  try {
+const url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID + '/gviz/tq?tqx=out:json&sheet=Resumo&headers=1';  try {
     const resp = await fetch(url);
     const txt  = await resp.text();
     const m = txt.match(/setResponse\(([\s\S]*)\);?\s*$/);
@@ -829,7 +828,7 @@ async function abrirModalidade(mod) {
 async function buscarSessoes() {
   const tq = encodeURIComponent('select * order by A desc limit 300');
   const url = 'https://docs.google.com/spreadsheets/d/' + SHEET_ID
-            + '/gviz/tq?tqx=out:json&sheet=Sessoes&tq=' + tq;
+            + '/gviz/tq?tqx=out:json&sheet=Sessoes&tq=' + tq + '&headers=1';
   const txt = await (await fetch(url)).text();
   const m = txt.match(/setResponse\(([\s\S]*)\);?\s*$/);
   if (!m) throw new Error('resposta inesperada da planilha');
